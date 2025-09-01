@@ -1,0 +1,1 @@
+cls && client_build.bat && client.exe

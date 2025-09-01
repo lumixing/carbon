@@ -1,0 +1,8 @@
+*.exe
+*.o
+*.dll
+host.c
+plugin.c
+client/cglm
+client/glad
+client/glfw3.h
