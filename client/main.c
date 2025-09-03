@@ -12,11 +12,11 @@
 #include <psapi.h>
 
 float get_ram_usage_in_mb() {
-    PROCESS_MEMORY_COUNTERS pmc;
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        // printf("RAM: %.1f MB\n", pmc.WorkingSetSize / 1024.0 / 1024.0);
+	PROCESS_MEMORY_COUNTERS pmc;
+	if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+		// printf("RAM: %.1f MB\n", pmc.WorkingSetSize / 1024.0 / 1024.0);
 		return pmc.WorkingSetSize / 1024.0 / 1024.0;
-    }
+	}
 	return -1;
 }
 
@@ -71,16 +71,23 @@ typedef enum {
 	BLOCK_STONE,
 } Block;
 
-#define CHUNK_SIZE 32
+#define CHUNK_SIZE 16
 
 int chunk_lin(int x, int y, int z) {
 	return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
 }
 
 typedef struct {
+	unsigned int x : 5;
+	unsigned int y : 5;
+	unsigned int z : 5;
+	unsigned int b : 2;
+} BlockVertex;
+
+typedef struct {
 	char *blocks;
 	int vertices_len;
-	float *vertices;
+	BlockVertex *vertices;
 	int indices_len;
 	unsigned int *indices;
 } Chunk;
@@ -104,35 +111,34 @@ void chunk_init(Chunk *chunk) {
 }
 
 void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
-	float vertices[] = {
-		0+x, 1+y, 0+z, 0, 1, 0, // front
-		1+x, 1+y, 0+z, 0, 1, 0,
-		0+x, 0+y, 0+z, 0, 1, 0,
-		1+x, 0+y, 0+z, 0, 1, 0,
-		0+x, 1+y, 1+z, 0, 1, 0, // back
-		1+x, 1+y, 1+z, 0, 1, 0,
-		0+x, 0+y, 1+z, 0, 1, 0,
-		1+x, 0+y, 1+z, 0, 1, 0,
-		0+x, 1+y, 0+z, 0, 0, 1, // left
-		0+x, 0+y, 0+z, 0, 0, 1,
-		0+x, 1+y, 1+z, 0, 0, 1,
-		0+x, 0+y, 1+z, 0, 0, 1,
-		1+x, 1+y, 0+z, 0, 0, 1, // right
-		1+x, 0+y, 0+z, 0, 0, 1,
-		1+x, 1+y, 1+z, 0, 0, 1,
-		1+x, 0+y, 1+z, 0, 0, 1,
-		0+x, 0+y, 0+z, 1, 0, 0, // bottom
-		1+x, 0+y, 0+z, 1, 0, 0,
-		0+x, 0+y, 1+z, 1, 0, 0,
-		1+x, 0+y, 1+z, 1, 0, 0,
-		0+x, 1+y, 0+z, 1, 0, 0, // top
-		1+x, 1+y, 0+z, 1, 0, 0,
-		0+x, 1+y, 1+z, 1, 0, 0,
-		1+x, 1+y, 1+z, 1, 0, 0,
+	BlockVertex vertices[] = {
+		{0+x, 1+y, 0+z, 0}, // front
+		{1+x, 1+y, 0+z, 0},
+		{0+x, 0+y, 0+z, 0},
+		{1+x, 0+y, 0+z, 0},
+		{0+x, 1+y, 1+z, 0}, // back
+		{1+x, 1+y, 1+z, 0},
+		{0+x, 0+y, 1+z, 0},
+		{1+x, 0+y, 1+z, 0},
+		{0+x, 1+y, 0+z, 1}, // left
+		{0+x, 0+y, 0+z, 1},
+		{0+x, 1+y, 1+z, 1},
+		{0+x, 0+y, 1+z, 1},
+		{1+x, 1+y, 0+z, 1}, // right
+		{1+x, 0+y, 0+z, 1},
+		{1+x, 1+y, 1+z, 1},
+		{1+x, 0+y, 1+z, 1},
+		{0+x, 0+y, 0+z, 2}, // bottom
+		{1+x, 0+y, 0+z, 2},
+		{0+x, 0+y, 1+z, 2},
+		{1+x, 0+y, 1+z, 2},
+		{0+x, 1+y, 0+z, 2}, // top
+		{1+x, 1+y, 0+z, 2},
+		{0+x, 1+y, 1+z, 2},
+		{1+x, 1+y, 1+z, 2},
 	};
 
-	// printf("%d %u %u\n", block_count, chunk->vertices, chunk->vertices+(block_count * 6 * 4 * 6 * sizeof(float)));
-	memcpy(chunk->vertices + (block_count * 6 * 4 * 6), vertices, 6 * 4 * 6 * sizeof(float));
+	memcpy(chunk->vertices + (block_count * 4 * 6), vertices, 4 * 6 * sizeof(BlockVertex));
 }
 
 // make sure to free vertices and indices if needed before (or after) baking
@@ -145,12 +151,12 @@ void chunk_bake(Chunk *chunk) {
 		}
 	}
 
-	printf("allocating %lld kb for vertices\n", block_count * 6 * 4 * 6 * sizeof(float)/1024);
-	chunk->vertices = malloc(block_count * 6 * 4 * 6 * sizeof(float));
-	chunk->vertices_len = block_count * 6 * 4 * 6;
-	printf("allocating %lld kb for indices\n", block_count * 6 * 6 * sizeof(unsigned int)/1024);
+	chunk->vertices = malloc(block_count * 6 * 4 * sizeof(BlockVertex));
+	chunk->vertices_len = block_count * 6 * 4;
+	printf("allocating %lld b for %d vertices\n", block_count * 6 * 4 * sizeof(BlockVertex), block_count * 6 * 4);
 	chunk->indices = malloc(block_count * 6 * 6 * sizeof(unsigned int));
 	chunk->indices_len = block_count * 6 * 6;
+	printf("allocating %lld b for %d indices\n", block_count * 6 * 6 * sizeof(unsigned int), block_count * 6 * 6);
 
 	for (int i = 0; i < block_count * 6; i++) {
 		chunk->indices[0+6*i] = 0+4*i;
@@ -269,6 +275,7 @@ int main() {
 	chunk_init(&chunk);
 	print_ram("before baking");
 	chunk_bake(&chunk);
+	printf("%p\n", chunk.vertices);
 	print_ram("after baking");
 	free(chunk.blocks);
 	print_ram("after freeing blocks");
@@ -287,7 +294,8 @@ int main() {
 	glBindVertexArray(vao);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(float), chunk.vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(BlockVertex), chunk.vertices, GL_STATIC_DRAW);
+	printf("%p\n", chunk.vertices);
 	free(chunk.vertices);
 	print_ram("after freeing vertices");
 
@@ -296,11 +304,14 @@ int main() {
 	free(chunk.indices);
 	print_ram("after freeing indices");
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+	glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
 	glEnableVertexAttribArray(0);
 
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+	// glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+	// glEnableVertexAttribArray(0);
+
+	// glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
+	// glEnableVertexAttribArray(1);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
