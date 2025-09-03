@@ -2,10 +2,27 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include "../defer.h"
 #include "glad/include/glad/glad.h"
 #include "glfw3.h"
 #include "cglm/include/cglm/cglm.h"
+
+#include <windows.h>
+#include <psapi.h>
+
+float get_ram_usage_in_mb() {
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        // printf("RAM: %.1f MB\n", pmc.WorkingSetSize / 1024.0 / 1024.0);
+		return pmc.WorkingSetSize / 1024.0 / 1024.0;
+    }
+	return -1;
+}
+
+void print_ram(char *text) {
+	printf("RAM USAGE (%s): %.2f MB\n", text, get_ram_usage_in_mb());
+}
 
 // @free(buf)
 bool read_entire_file(char **buf, char *path) {
@@ -47,6 +64,123 @@ Camera camera = {0};
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
+typedef enum {
+	BLOCK_AIR,
+	BLOCK_GRASS,
+	BLOCK_DIRT,
+	BLOCK_STONE,
+} Block;
+
+#define CHUNK_SIZE 32
+
+int chunk_lin(int x, int y, int z) {
+	return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
+}
+
+typedef struct {
+	char *blocks;
+	int vertices_len;
+	float *vertices;
+	int indices_len;
+	unsigned int *indices;
+} Chunk;
+
+void chunk_init(Chunk *chunk) {
+	chunk->blocks = malloc(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+
+	if (chunk->blocks == NULL) {
+		printf("could not init chunk, buy more ram.\n");
+		return;
+	}
+
+	for (int x = 0; x < CHUNK_SIZE; x++) {
+		for (int y = 0; y < CHUNK_SIZE; y++) {
+			for (int z = 0; z < CHUNK_SIZE; z++) {
+				int i = chunk_lin(x, y, z);
+				chunk->blocks[i] = rand() % 2;
+			}
+		}
+	}
+}
+
+void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
+	float vertices[] = {
+		0+x, 1+y, 0+z, 0, 1, 0, // front
+		1+x, 1+y, 0+z, 0, 1, 0,
+		0+x, 0+y, 0+z, 0, 1, 0,
+		1+x, 0+y, 0+z, 0, 1, 0,
+		0+x, 1+y, 1+z, 0, 1, 0, // back
+		1+x, 1+y, 1+z, 0, 1, 0,
+		0+x, 0+y, 1+z, 0, 1, 0,
+		1+x, 0+y, 1+z, 0, 1, 0,
+		0+x, 1+y, 0+z, 0, 0, 1, // left
+		0+x, 0+y, 0+z, 0, 0, 1,
+		0+x, 1+y, 1+z, 0, 0, 1,
+		0+x, 0+y, 1+z, 0, 0, 1,
+		1+x, 1+y, 0+z, 0, 0, 1, // right
+		1+x, 0+y, 0+z, 0, 0, 1,
+		1+x, 1+y, 1+z, 0, 0, 1,
+		1+x, 0+y, 1+z, 0, 0, 1,
+		0+x, 0+y, 0+z, 1, 0, 0, // bottom
+		1+x, 0+y, 0+z, 1, 0, 0,
+		0+x, 0+y, 1+z, 1, 0, 0,
+		1+x, 0+y, 1+z, 1, 0, 0,
+		0+x, 1+y, 0+z, 1, 0, 0, // top
+		1+x, 1+y, 0+z, 1, 0, 0,
+		0+x, 1+y, 1+z, 1, 0, 0,
+		1+x, 1+y, 1+z, 1, 0, 0,
+	};
+
+	// printf("%d %u %u\n", block_count, chunk->vertices, chunk->vertices+(block_count * 6 * 4 * 6 * sizeof(float)));
+	memcpy(chunk->vertices + (block_count * 6 * 4 * 6), vertices, 6 * 4 * 6 * sizeof(float));
+}
+
+// make sure to free vertices and indices if needed before (or after) baking
+void chunk_bake(Chunk *chunk) {
+	int block_count = 0;
+
+	for (int i = 0; i < CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE; i++) {
+		if (chunk->blocks[i] != 0) {
+			block_count += 1;
+		}
+	}
+
+	printf("allocating %lld kb for vertices\n", block_count * 6 * 4 * 6 * sizeof(float)/1024);
+	chunk->vertices = malloc(block_count * 6 * 4 * 6 * sizeof(float));
+	chunk->vertices_len = block_count * 6 * 4 * 6;
+	printf("allocating %lld kb for indices\n", block_count * 6 * 6 * sizeof(unsigned int)/1024);
+	chunk->indices = malloc(block_count * 6 * 6 * sizeof(unsigned int));
+	chunk->indices_len = block_count * 6 * 6;
+
+	for (int i = 0; i < block_count * 6; i++) {
+		chunk->indices[0+6*i] = 0+4*i;
+		chunk->indices[1+6*i] = 1+4*i;
+		chunk->indices[2+6*i] = 3+4*i;
+		chunk->indices[3+6*i] = 0+4*i;
+		chunk->indices[4+6*i] = 3+4*i;
+		chunk->indices[5+6*i] = 2+4*i;
+	}
+
+	block_count = 0;
+	for (int x = 0; x < CHUNK_SIZE; x++) {
+		for (int y = 0; y < CHUNK_SIZE; y++) {
+			for (int z = 0; z < CHUNK_SIZE; z++) {
+				int i = chunk_lin(x, y, z);
+				if (chunk->blocks[i] == 0) {
+					continue;
+				}
+				chunk_bake_block(chunk, x, y, z, block_count++);
+			}
+		}
+	}
+}
+
+void chunk_free(Chunk *chunk) {
+	free(chunk->blocks);
+	free(chunk->vertices);
+	free(chunk->indices);
+}
+
 int main() {
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
@@ -67,7 +201,7 @@ int main() {
 
 	glfwSetWindowPos(window, (1920-800)/2, (1080-600)/2);
 	glfwMakeContextCurrent(window);
-	glfwSetCursorPosCallback(window, mouse_callback);\
+	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -131,57 +265,13 @@ int main() {
 	free(fragment_src);
 	glDeleteShader(fragment_shader);
 
-	float vertices[] = {
-		0, 1, 0, 0, 1, 0, // front
-		1, 1, 0, 0, 1, 0,
-		0, 0, 0, 0, 1, 0,
-		1, 0, 0, 0, 1, 0,
-
-		0, 1, 1, 0, 1, 0, // back
-		1, 1, 1, 0, 1, 0,
-		0, 0, 1, 0, 1, 0,
-		1, 0, 1, 0, 1, 0,
-
-		0, 1, 0, 0, 0, 1, // left
-		0, 0, 0, 0, 0, 1,
-		0, 1, 1, 0, 0, 1,
-		0, 0, 1, 0, 0, 1,
-
-		1, 1, 0, 0, 0, 1, // right
-		1, 0, 0, 0, 0, 1,
-		1, 1, 1, 0, 0, 1,
-		1, 0, 1, 0, 0, 1,
-
-		0, 0, 0, 1, 0, 0, // bottom
-		1, 0, 0, 1, 0, 0,
-		0, 0, 1, 1, 0, 0,
-		1, 0, 1, 1, 0, 0,
-
-		0, 1, 0, 1, 0, 0, // top
-		1, 1, 0, 1, 0, 0,
-		0, 1, 1, 1, 0, 0,
-		1, 1, 1, 1, 0, 0,
-	};
-
-	unsigned int indices[] = {
-		0, 1, 3,
-		0, 3, 2,
-
-		0+4, 1+4, 3+4,
-		0+4, 3+4, 2+4,
-
-		0+8, 1+8, 3+8,
-		0+8, 3+8, 2+8,
-
-		0+12, 1+12, 3+12,
-		0+12, 3+12, 2+12,
-
-		0+16, 1+16, 3+16,
-		0+16, 3+16, 2+16,
-
-		0+20, 1+20, 3+20,
-		0+20, 3+20, 2+20,
-	};
+	Chunk chunk;
+	chunk_init(&chunk);
+	print_ram("before baking");
+	chunk_bake(&chunk);
+	print_ram("after baking");
+	free(chunk.blocks);
+	print_ram("after freeing blocks");
 
 	unsigned int vao, vbo, ebo;
 
@@ -197,10 +287,14 @@ int main() {
 	glBindVertexArray(vao);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(float), chunk.vertices, GL_STATIC_DRAW);
+	free(chunk.vertices);
+	print_ram("after freeing vertices");
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indices_len * sizeof(unsigned int), chunk.indices, GL_STATIC_DRAW);
+	free(chunk.indices);
+	print_ram("after freeing indices");
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
 	glEnableVertexAttribArray(0);
@@ -227,8 +321,15 @@ int main() {
 
 	glEnable(GL_DEPTH_TEST);
 
+	char window_title[1024] = "hello :D";
+	double prev_time = 0;
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
+
+		double time = glfwGetTime();
+		float dt = time - prev_time;
+		prev_time = time;
 
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
@@ -278,7 +379,12 @@ int main() {
 			glm_vec3_sub(camera.position, up, camera.position);
 		}
 
-		printf("pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
+		// sprintf(window_title, "pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
+		sprintf(window_title, "%.0f fps / %.1f mb", 1./dt, get_ram_usage_in_mb());
+		glfwSetWindowTitle(window, window_title);
+
+		// printf("pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
+		// print_ram_usage();
 
 		glClearColor(135./255, 206./255, 235./255, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -298,7 +404,7 @@ int main() {
 		glm_mat4_identity(model);
 		glUniformMatrix4fv(u_model, 1, GL_FALSE, model[0]);
 
-		glDrawElements(GL_TRIANGLES, sizeof(indices)/sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, chunk.indices_len, GL_UNSIGNED_INT, 0);
 
 		glfwSwapBuffers(window);
 	}
