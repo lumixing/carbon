@@ -4,19 +4,28 @@
 #include <math.h>
 #include <string.h>
 #include "../defer.h"
+#include "chunk.h"
 #include "glad/include/glad/glad.h"
 #include "glfw3.h"
 #include "cglm/include/cglm/cglm.h"
 
+#define DEBUG
+
+#ifdef DEBUG
+
 #include <windows.h>
 #include <psapi.h>
 
+#endif
+
 float get_ram_usage_in_mb() {
+#ifdef DEBUG
 	PROCESS_MEMORY_COUNTERS pmc;
 	if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
 		// printf("RAM: %.1f MB\n", pmc.WorkingSetSize / 1024.0 / 1024.0);
 		return pmc.WorkingSetSize / 1024.0 / 1024.0;
 	}
+#endif
 	return -1;
 }
 
@@ -64,127 +73,50 @@ Camera camera = {0};
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
-typedef enum {
-	BLOCK_AIR,
-	BLOCK_GRASS,
-	BLOCK_DIRT,
-	BLOCK_STONE,
-} Block;
-
-#define CHUNK_SIZE 16
-
-int chunk_lin(int x, int y, int z) {
-	return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
-}
-
-typedef struct {
-	unsigned int x : 5;
-	unsigned int y : 5;
-	unsigned int z : 5;
-	unsigned int b : 2;
-} BlockVertex;
-
-typedef struct {
-	char *blocks;
-	int vertices_len;
-	BlockVertex *vertices;
-	int indices_len;
-	unsigned int *indices;
-} Chunk;
-
-void chunk_init(Chunk *chunk) {
-	chunk->blocks = malloc(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-
-	if (chunk->blocks == NULL) {
-		printf("could not init chunk, buy more ram.\n");
-		return;
+void update_camera_position(GLFWwindow *window) {
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		vec2 front;
+		glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
+		glm_vec2_normalize(front);
+		camera.position[X] += front[X] * CAM_SPEED;
+		camera.position[Z] += front[Y] * CAM_SPEED;
 	}
 
-	for (int x = 0; x < CHUNK_SIZE; x++) {
-		for (int y = 0; y < CHUNK_SIZE; y++) {
-			for (int z = 0; z < CHUNK_SIZE; z++) {
-				int i = chunk_lin(x, y, z);
-				chunk->blocks[i] = rand() % 2;
-			}
-		}
-	}
-}
-
-void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
-	BlockVertex vertices[] = {
-		{0+x, 1+y, 0+z, 0}, // front
-		{1+x, 1+y, 0+z, 0},
-		{0+x, 0+y, 0+z, 0},
-		{1+x, 0+y, 0+z, 0},
-		{0+x, 1+y, 1+z, 0}, // back
-		{1+x, 1+y, 1+z, 0},
-		{0+x, 0+y, 1+z, 0},
-		{1+x, 0+y, 1+z, 0},
-		{0+x, 1+y, 0+z, 1}, // left
-		{0+x, 0+y, 0+z, 1},
-		{0+x, 1+y, 1+z, 1},
-		{0+x, 0+y, 1+z, 1},
-		{1+x, 1+y, 0+z, 1}, // right
-		{1+x, 0+y, 0+z, 1},
-		{1+x, 1+y, 1+z, 1},
-		{1+x, 0+y, 1+z, 1},
-		{0+x, 0+y, 0+z, 2}, // bottom
-		{1+x, 0+y, 0+z, 2},
-		{0+x, 0+y, 1+z, 2},
-		{1+x, 0+y, 1+z, 2},
-		{0+x, 1+y, 0+z, 2}, // top
-		{1+x, 1+y, 0+z, 2},
-		{0+x, 1+y, 1+z, 2},
-		{1+x, 1+y, 1+z, 2},
-	};
-
-	memcpy(chunk->vertices + (block_count * 4 * 6), vertices, 4 * 6 * sizeof(BlockVertex));
-}
-
-// make sure to free vertices and indices if needed before (or after) baking
-void chunk_bake(Chunk *chunk) {
-	int block_count = 0;
-
-	for (int i = 0; i < CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE; i++) {
-		if (chunk->blocks[i] != 0) {
-			block_count += 1;
-		}
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		vec2 front;
+		glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
+		glm_vec2_normalize(front);
+		camera.position[X] -= front[X] * CAM_SPEED;
+		camera.position[Z] -= front[Y] * CAM_SPEED;
 	}
 
-	chunk->vertices = malloc(block_count * 6 * 4 * sizeof(BlockVertex));
-	chunk->vertices_len = block_count * 6 * 4;
-	printf("allocating %lld b for %d vertices\n", block_count * 6 * 4 * sizeof(BlockVertex), block_count * 6 * 4);
-	chunk->indices = malloc(block_count * 6 * 6 * sizeof(unsigned int));
-	chunk->indices_len = block_count * 6 * 6;
-	printf("allocating %lld b for %d indices\n", block_count * 6 * 6 * sizeof(unsigned int), block_count * 6 * 6);
-
-	for (int i = 0; i < block_count * 6; i++) {
-		chunk->indices[0+6*i] = 0+4*i;
-		chunk->indices[1+6*i] = 1+4*i;
-		chunk->indices[2+6*i] = 3+4*i;
-		chunk->indices[3+6*i] = 0+4*i;
-		chunk->indices[4+6*i] = 3+4*i;
-		chunk->indices[5+6*i] = 2+4*i;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		vec3 cross;
+		glm_vec3_cross(camera.front, camera.up, cross);
+		glm_vec3_normalize(cross);
+		glm_vec3_scale(cross, CAM_SPEED, cross);
+		glm_vec3_sub(camera.position, cross, camera.position);
 	}
 
-	block_count = 0;
-	for (int x = 0; x < CHUNK_SIZE; x++) {
-		for (int y = 0; y < CHUNK_SIZE; y++) {
-			for (int z = 0; z < CHUNK_SIZE; z++) {
-				int i = chunk_lin(x, y, z);
-				if (chunk->blocks[i] == 0) {
-					continue;
-				}
-				chunk_bake_block(chunk, x, y, z, block_count++);
-			}
-		}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		vec3 cross;
+		glm_vec3_cross(camera.front, camera.up, cross);
+		glm_vec3_normalize(cross);
+		glm_vec3_scale(cross, CAM_SPEED, cross);
+		glm_vec3_add(camera.position, cross, camera.position);
 	}
-}
 
-void chunk_free(Chunk *chunk) {
-	free(chunk->blocks);
-	free(chunk->vertices);
-	free(chunk->indices);
+	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		vec3 up;
+		glm_vec3_scale(camera.up, CAM_SPEED, up);
+		glm_vec3_add(camera.position, up, camera.position);
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+		vec3 up;
+		glm_vec3_scale(camera.up, CAM_SPEED, up);
+		glm_vec3_sub(camera.position, up, camera.position);
+	}
 }
 
 int main() {
@@ -207,6 +139,7 @@ int main() {
 
 	glfwSetWindowPos(window, (1920-800)/2, (1080-600)/2);
 	glfwMakeContextCurrent(window);
+	glfwSwapInterval(0);
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -271,52 +204,60 @@ int main() {
 	free(fragment_src);
 	glDeleteShader(fragment_shader);
 
-	Chunk chunk;
-	chunk_init(&chunk);
-	print_ram("before baking");
-	chunk_bake(&chunk);
-	printf("%p\n", chunk.vertices);
-	print_ram("after baking");
-	free(chunk.blocks);
-	print_ram("after freeing blocks");
-
-	unsigned int vao, vbo, ebo;
-
+	unsigned int vao;
 	glGenVertexArrays(1, &vao);
 	defer { glDeleteVertexArrays(1, &vao); }
-
-	glGenBuffers(1, &vbo);
-	defer { glDeleteBuffers(1, &vbo); }
-
-	glGenBuffers(1, &ebo);
-	defer { glDeleteBuffers(1, &ebo); }
-
 	glBindVertexArray(vao);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(BlockVertex), chunk.vertices, GL_STATIC_DRAW);
-	printf("%p\n", chunk.vertices);
-	free(chunk.vertices);
-	print_ram("after freeing vertices");
+	// ch1
+	Chunk chunk;
+	glm_ivec3_copy((ivec3){0, 0, 0}, chunk.cpos);
+	chunk_init(&chunk);
+	chunk_bake(&chunk);
+	free(chunk.blocks);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glGenBuffers(1, &chunk.vbo);
+	defer { glDeleteBuffers(1, &chunk.vbo); }
+
+	glGenBuffers(1, &chunk.ebo);
+	defer { glDeleteBuffers(1, &chunk.ebo); }
+
+	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo);
+	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(BlockVertex), chunk.vertices, GL_STATIC_DRAW);
+	free(chunk.vertices);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indices_len * sizeof(unsigned int), chunk.indices, GL_STATIC_DRAW);
 	free(chunk.indices);
-	print_ram("after freeing indices");
 
-	glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
-	glEnableVertexAttribArray(0);
-
-	// glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+	// glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
 	// glEnableVertexAttribArray(0);
 
-	// glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
-	// glEnableVertexAttribArray(1);
+	// ch2
+	Chunk chunk2;
+	glm_ivec3_copy((ivec3){1, 1, 1}, chunk2.cpos);
+	chunk_init(&chunk2);
+	chunk_bake(&chunk2);
+	free(chunk2.blocks);
 
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
+	glGenBuffers(1, &chunk2.vbo);
+	defer { glDeleteBuffers(1, &chunk2.vbo); }
 
-	// Camera camera = {0};
+	glGenBuffers(1, &chunk2.ebo);
+	defer { glDeleteBuffers(1, &chunk2.ebo); }
+
+	glBindBuffer(GL_ARRAY_BUFFER, chunk2.vbo);
+	glBufferData(GL_ARRAY_BUFFER, chunk2.vertices_len * sizeof(BlockVertex), chunk2.vertices, GL_STATIC_DRAW);
+	free(chunk2.vertices);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk2.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk2.indices_len * sizeof(unsigned int), chunk2.indices, GL_STATIC_DRAW);
+	free(chunk2.indices);
+
+	// wtf? is? this???
+	// glBindBuffer(GL_ARRAY_BUFFER, 0);
+	// glBindVertexArray(0);
+
 	glm_vec3_copy((vec3){0, 0, 5}, camera.position);
 	glm_vec3_copy((vec3){0, 0, -1}, camera.front);
 	glm_vec3_copy((vec3){0, 1, 0}, camera.up);
@@ -326,9 +267,10 @@ int main() {
 	int u_view = glGetUniformLocation(program, "view");
 	int u_proj = glGetUniformLocation(program, "proj");
 
+	int u_cpos = glGetUniformLocation(program, "cpos");
+
 	mat4 proj;
 	glm_perspective(45, 800./600, 0.1, 1000, proj);
-	// glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -340,67 +282,27 @@ int main() {
 
 		double time = glfwGetTime();
 		float dt = time - prev_time;
+		dt += 0; // dont bitch and moan
 		prev_time = time;
 
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
 		}
 
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			vec2 front;
-			glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
-			glm_vec2_normalize(front);
-			camera.position[X] += front[X] * CAM_SPEED;
-			camera.position[Z] += front[Y] * CAM_SPEED;
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			vec2 front;
-			glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
-			glm_vec2_normalize(front);
-			camera.position[X] -= front[X] * CAM_SPEED;
-			camera.position[Z] -= front[Y] * CAM_SPEED;
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			vec3 cross;
-			glm_vec3_cross(camera.front, camera.up, cross);
-			glm_vec3_normalize(cross);
-			glm_vec3_scale(cross, CAM_SPEED, cross);
-			glm_vec3_sub(camera.position, cross, camera.position);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			vec3 cross;
-			glm_vec3_cross(camera.front, camera.up, cross);
-			glm_vec3_normalize(cross);
-			glm_vec3_scale(cross, CAM_SPEED, cross);
-			glm_vec3_add(camera.position, cross, camera.position);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-			vec3 up;
-			glm_vec3_scale(camera.up, CAM_SPEED, up);
-			glm_vec3_add(camera.position, up, camera.position);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-			vec3 up;
-			glm_vec3_scale(camera.up, CAM_SPEED, up);
-			glm_vec3_sub(camera.position, up, camera.position);
-		}
+		update_camera_position(window);
 
 		// sprintf(window_title, "pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
 		sprintf(window_title, "%.0f fps / %.1f mb", 1./dt, get_ram_usage_in_mb());
 		glfwSetWindowTitle(window, window_title);
 
-		// printf("pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
-		// print_ram_usage();
-
 		glClearColor(135./255, 206./255, 235./255, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(program);
+
+		// int chunk_pos[3] = {0};
+		// glUniform3iv(u_cpos, 1, chunk_pos);
+
 		glBindVertexArray(vao);
 
 		glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);
@@ -415,7 +317,19 @@ int main() {
 		glm_mat4_identity(model);
 		glUniformMatrix4fv(u_model, 1, GL_FALSE, model[0]);
 
+		glUniform3iv(u_cpos, 1, chunk.cpos);
+		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo);
+		glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
+		glEnableVertexAttribArray(0);
 		glDrawElements(GL_TRIANGLES, chunk.indices_len, GL_UNSIGNED_INT, 0);
+
+		glUniform3iv(u_cpos, 1, chunk2.cpos);
+		glBindBuffer(GL_ARRAY_BUFFER, chunk2.vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk2.ebo);
+		glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
+		glEnableVertexAttribArray(0);
+		glDrawElements(GL_TRIANGLES, chunk2.indices_len, GL_UNSIGNED_INT, 0);
 
 		glfwSwapBuffers(window);
 	}

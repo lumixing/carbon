@@ -11,6 +11,8 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
 
+uniform ivec3 cpos;
+
 void main() {
 	vec3 aPos = vec3(
 		bitfieldExtract(data, 0, 5),
@@ -18,6 +20,7 @@ void main() {
 		bitfieldExtract(data, 10, 5)
 	);
 
+	aPos += cpos * 16;
 	gl_Position = proj * view * model * vec4(aPos, 1);
 	//oCol = aCol;
 
