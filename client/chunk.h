@@ -31,3 +31,4 @@ void chunk_init(Chunk *chunk);
 void chunk_free(Chunk *chunk);
 void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count);
 void chunk_bake(Chunk *chunk);
+void chunk_render(Chunk *chunk, int u_cpos);

@@ -1,7 +1,9 @@
 #include "chunk.h"
+#include "util.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "glad/include/glad/glad.h"
 
 int chunk_lin(int x, int y, int z) {
 	return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
@@ -23,12 +25,17 @@ void chunk_init(Chunk *chunk) {
 			}
 		}
 	}
+
+	glGenBuffers(1, &chunk->vbo);
+	glGenBuffers(1, &chunk->ebo);
 }
 
 void chunk_free(Chunk *chunk) {
-	free(chunk->blocks);
-	free(chunk->vertices);
-	free(chunk->indices);
+	nfree(chunk->blocks);
+	nfree(chunk->vertices);
+	nfree(chunk->indices);
+	glDeleteBuffers(1, &chunk->vbo);
+	glDeleteBuffers(1, &chunk->ebo);
 }
 
 void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
@@ -100,4 +107,21 @@ void chunk_bake(Chunk *chunk) {
 			}
 		}
 	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo);
+	glBufferData(GL_ARRAY_BUFFER, chunk->vertices_len * sizeof(BlockVertex), chunk->vertices, GL_STATIC_DRAW);
+	free(chunk->vertices);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk->indices_len * sizeof(unsigned int), chunk->indices, GL_STATIC_DRAW);
+	free(chunk->indices);
+}
+
+void chunk_render(Chunk *chunk, int u_cpos) {
+	glUniform3iv(u_cpos, 1, chunk->cpos);
+	glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo);
+	glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
+	glEnableVertexAttribArray(0);
+	glDrawElements(GL_TRIANGLES, chunk->indices_len, GL_UNSIGNED_INT, 0);
 }

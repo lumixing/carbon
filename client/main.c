@@ -139,7 +139,7 @@ int main() {
 
 	glfwSetWindowPos(window, (1920-800)/2, (1080-600)/2);
 	glfwMakeContextCurrent(window);
-	glfwSwapInterval(0);
+	// glfwSwapInterval(1);
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -209,54 +209,11 @@ int main() {
 	defer { glDeleteVertexArrays(1, &vao); }
 	glBindVertexArray(vao);
 
-	// ch1
 	Chunk chunk;
 	glm_ivec3_copy((ivec3){0, 0, 0}, chunk.cpos);
 	chunk_init(&chunk);
 	chunk_bake(&chunk);
-	free(chunk.blocks);
-
-	glGenBuffers(1, &chunk.vbo);
-	defer { glDeleteBuffers(1, &chunk.vbo); }
-
-	glGenBuffers(1, &chunk.ebo);
-	defer { glDeleteBuffers(1, &chunk.ebo); }
-
-	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo);
-	glBufferData(GL_ARRAY_BUFFER, chunk.vertices_len * sizeof(BlockVertex), chunk.vertices, GL_STATIC_DRAW);
-	free(chunk.vertices);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indices_len * sizeof(unsigned int), chunk.indices, GL_STATIC_DRAW);
-	free(chunk.indices);
-
-	// glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
-	// glEnableVertexAttribArray(0);
-
-	// ch2
-	Chunk chunk2;
-	glm_ivec3_copy((ivec3){1, 1, 1}, chunk2.cpos);
-	chunk_init(&chunk2);
-	chunk_bake(&chunk2);
-	free(chunk2.blocks);
-
-	glGenBuffers(1, &chunk2.vbo);
-	defer { glDeleteBuffers(1, &chunk2.vbo); }
-
-	glGenBuffers(1, &chunk2.ebo);
-	defer { glDeleteBuffers(1, &chunk2.ebo); }
-
-	glBindBuffer(GL_ARRAY_BUFFER, chunk2.vbo);
-	glBufferData(GL_ARRAY_BUFFER, chunk2.vertices_len * sizeof(BlockVertex), chunk2.vertices, GL_STATIC_DRAW);
-	free(chunk2.vertices);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk2.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk2.indices_len * sizeof(unsigned int), chunk2.indices, GL_STATIC_DRAW);
-	free(chunk2.indices);
-
-	// wtf? is? this???
-	// glBindBuffer(GL_ARRAY_BUFFER, 0);
-	// glBindVertexArray(0);
+	defer { chunk_free(&chunk); }
 
 	glm_vec3_copy((vec3){0, 0, 5}, camera.position);
 	glm_vec3_copy((vec3){0, 0, -1}, camera.front);
@@ -299,10 +256,6 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(program);
-
-		// int chunk_pos[3] = {0};
-		// glUniform3iv(u_cpos, 1, chunk_pos);
-
 		glBindVertexArray(vao);
 
 		glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);
@@ -317,19 +270,7 @@ int main() {
 		glm_mat4_identity(model);
 		glUniformMatrix4fv(u_model, 1, GL_FALSE, model[0]);
 
-		glUniform3iv(u_cpos, 1, chunk.cpos);
-		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo);
-		glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
-		glEnableVertexAttribArray(0);
-		glDrawElements(GL_TRIANGLES, chunk.indices_len, GL_UNSIGNED_INT, 0);
-
-		glUniform3iv(u_cpos, 1, chunk2.cpos);
-		glBindBuffer(GL_ARRAY_BUFFER, chunk2.vbo);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk2.ebo);
-		glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(BlockVertex), 0);
-		glEnableVertexAttribArray(0);
-		glDrawElements(GL_TRIANGLES, chunk2.indices_len, GL_UNSIGNED_INT, 0);
+		chunk_render(&chunk, u_cpos);
 
 		glfwSwapBuffers(window);
 	}

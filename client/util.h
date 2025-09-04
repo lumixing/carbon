@@ -1,0 +1,1 @@
+#define nfree(ptr) do { if (ptr != NULL) { free(ptr); ptr = NULL; } } while (0)
