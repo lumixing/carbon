@@ -284,6 +284,33 @@ int main() {
 
 		update_camera_position(window);
 
+		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+			printf("!!! pressed !!!\n");
+			for (int i = 0; i < 10; i++) {
+				vec3 pos;
+				glm_vec3_scale(camera.front, i, pos);
+				glm_vec3_add(pos, camera.position, pos);
+				glm_vec3_floor(pos, pos);
+				if (pos[X] < 0 || pos[Y] < 0 || pos[Z] < 0) continue;
+				printf("%d -> %f %f %f\n", i, pos[X], pos[Y], pos[Z]);
+				// todo: check world size
+				int cx = pos[X] / CHUNK_SIZE;
+				int cy = pos[Y] / CHUNK_SIZE;
+				int cz = pos[Z] / CHUNK_SIZE;
+				int ci = world_lin(world.size, cx, cy, cz);
+				int x = (int)pos[X] % CHUNK_SIZE;
+				int y = (int)pos[Y] % CHUNK_SIZE;
+				int z = (int)pos[Z] % CHUNK_SIZE;
+				int bi = chunk_lin(x, y, z);
+				if (world.chunks[ci].blocks[bi] != 0) {
+					world.chunks[ci].blocks[bi] = 0;
+					printf("hit block %d %d\n", ci, bi);
+					chunk_bake(&world.chunks[ci]);
+					break;
+				}
+			}
+		}
+
 		// sprintf(window_title, "pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
 		sprintf(window_title, "%.0f fps / %.1f mb", 1./dt, get_ram_usage_in_mb());
 		glfwSetWindowTitle(window, window_title);

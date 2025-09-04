@@ -26,6 +26,8 @@ void chunk_init(Chunk *chunk) {
 		}
 	}
 
+	chunk->blocks[0] = 1;
+
 	glGenBuffers(1, &chunk->vbo);
 	glGenBuffers(1, &chunk->ebo);
 }
