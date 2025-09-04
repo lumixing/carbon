@@ -3,8 +3,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
 #include "../defer.h"
 #include "chunk.h"
+#include "util.h"
 #include "glad/include/glad/glad.h"
 #include "glfw3.h"
 #include "cglm/include/cglm/cglm.h"
@@ -119,6 +121,41 @@ void update_camera_position(GLFWwindow *window) {
 	}
 }
 
+typedef struct {
+	ivec3 size;
+	int chunks_len;
+	Chunk *chunks;
+} World;
+
+int world_lin(ivec3 size, int x, int y, int z) {
+	return x + y * size[X] + z * size[X] * size[Y];
+}
+
+void world_init(World *world) {
+	world->chunks_len = world->size[X] * world->size[Y] * world->size[Z];
+	world->chunks = malloc(world->chunks_len * sizeof(Chunk));
+	assert(world->chunks != NULL);
+
+	for (int x = 0; x < world->size[X]; x++) {
+		for (int y = 0; y < world->size[Y]; y++) {
+			for (int z = 0; z < world->size[Z]; z++) {
+				int cidx = world_lin(world->size, x, y, z);
+				Chunk *chunk = &world->chunks[cidx];
+				glm_ivec3_copy((ivec3){x, y, z}, chunk->cpos);
+				chunk_init(chunk);
+				chunk_bake(chunk);
+			}
+		}
+	}
+}
+
+void world_free(World *world) {
+	for (int i = 0; i < world->chunks_len; i++) {
+		chunk_free(&world->chunks[i]);
+	}
+	nfree(world->chunks);
+}
+
 int main() {
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
@@ -209,11 +246,10 @@ int main() {
 	defer { glDeleteVertexArrays(1, &vao); }
 	glBindVertexArray(vao);
 
-	Chunk chunk;
-	glm_ivec3_copy((ivec3){0, 0, 0}, chunk.cpos);
-	chunk_init(&chunk);
-	chunk_bake(&chunk);
-	defer { chunk_free(&chunk); }
+	World world;
+	glm_ivec3_copy((ivec3){8, 1, 8}, world.size);
+	world_init(&world);
+	defer { world_free(&world); }
 
 	glm_vec3_copy((vec3){0, 0, 5}, camera.position);
 	glm_vec3_copy((vec3){0, 0, -1}, camera.front);
@@ -270,7 +306,12 @@ int main() {
 		glm_mat4_identity(model);
 		glUniformMatrix4fv(u_model, 1, GL_FALSE, model[0]);
 
-		chunk_render(&chunk, u_cpos);
+		// chunk_render(&chunk, u_cpos);
+
+		for (int i = 0; i < world.chunks_len; i++) {
+			Chunk *chunk = &world.chunks[i];
+			chunk_render(chunk, u_cpos);
+		}
 
 		glfwSwapBuffers(window);
 	}
