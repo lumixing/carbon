@@ -14,6 +14,7 @@ typedef struct {
 	unsigned int y : 5;
 	unsigned int z : 5;
 	unsigned int b : 2;
+	unsigned int t : 2;
 } BlockVertex;
 
 typedef struct {

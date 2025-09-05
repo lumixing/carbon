@@ -42,30 +42,30 @@ void chunk_free(Chunk *chunk) {
 
 void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
 	BlockVertex vertices[] = {
-		{0+x, 1+y, 0+z, 0}, // front
-		{1+x, 1+y, 0+z, 0},
-		{0+x, 0+y, 0+z, 0},
-		{1+x, 0+y, 0+z, 0},
-		{0+x, 1+y, 1+z, 0}, // back
-		{1+x, 1+y, 1+z, 0},
-		{0+x, 0+y, 1+z, 0},
-		{1+x, 0+y, 1+z, 0},
-		{0+x, 1+y, 0+z, 1}, // left
-		{0+x, 0+y, 0+z, 1},
-		{0+x, 1+y, 1+z, 1},
-		{0+x, 0+y, 1+z, 1},
-		{1+x, 1+y, 0+z, 1}, // right
-		{1+x, 0+y, 0+z, 1},
-		{1+x, 1+y, 1+z, 1},
-		{1+x, 0+y, 1+z, 1},
-		{0+x, 0+y, 0+z, 2}, // bottom
-		{1+x, 0+y, 0+z, 2},
-		{0+x, 0+y, 1+z, 2},
-		{1+x, 0+y, 1+z, 2},
-		{0+x, 1+y, 0+z, 2}, // top
-		{1+x, 1+y, 0+z, 2},
-		{0+x, 1+y, 1+z, 2},
-		{1+x, 1+y, 1+z, 2},
+		{0+x, 1+y, 0+z, 0, 0}, // front
+		{1+x, 1+y, 0+z, 0, 1},
+		{0+x, 0+y, 0+z, 0, 2},
+		{1+x, 0+y, 0+z, 0, 3},
+		{0+x, 1+y, 1+z, 0, 0}, // back
+		{1+x, 1+y, 1+z, 0, 1},
+		{0+x, 0+y, 1+z, 0, 2},
+		{1+x, 0+y, 1+z, 0, 3},
+		{0+x, 1+y, 0+z, 1, 0}, // left
+		{0+x, 0+y, 0+z, 1, 1},
+		{0+x, 1+y, 1+z, 1, 2},
+		{0+x, 0+y, 1+z, 1, 3},
+		{1+x, 1+y, 0+z, 1, 0}, // right
+		{1+x, 0+y, 0+z, 1, 1},
+		{1+x, 1+y, 1+z, 1, 2},
+		{1+x, 0+y, 1+z, 1, 3},
+		{0+x, 0+y, 0+z, 2, 0}, // bottom
+		{1+x, 0+y, 0+z, 2, 1},
+		{0+x, 0+y, 1+z, 2, 2},
+		{1+x, 0+y, 1+z, 2, 3},
+		{0+x, 1+y, 0+z, 2, 0}, // top
+		{1+x, 1+y, 0+z, 2, 1},
+		{0+x, 1+y, 1+z, 2, 2},
+		{1+x, 1+y, 1+z, 2, 3},
 	};
 
 	memcpy(chunk->vertices + (block_count * 4 * 6), vertices, 4 * 6 * sizeof(BlockVertex));

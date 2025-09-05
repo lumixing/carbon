@@ -6,3 +6,4 @@ plugin.c
 client/cglm
 client/glad
 client/glfw3.h
+client/stb_image.h

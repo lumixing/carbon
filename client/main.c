@@ -11,7 +11,10 @@
 #include "glfw3.h"
 #include "cglm/include/cglm/cglm.h"
 
-#define DEBUG
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+// #define DEBUG
 
 #ifdef DEBUG
 
@@ -156,6 +159,64 @@ void world_free(World *world) {
 	nfree(world->chunks);
 }
 
+unsigned int create_program_from_shaders(char *vs_path, char *fs_path) {
+	char *vertex_src;
+	if (!read_entire_file(&vertex_src, vs_path)) {
+		printf("could not read %s\n", vs_path);
+		return -1;
+	}
+
+	char *fragment_src;
+	if (!read_entire_file(&fragment_src, fs_path)) {
+		printf("could not read %s\n", fs_path);
+		return -1;
+	}
+
+	int success;
+	char info_log[1024];
+
+	unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertex_shader, 1, (const char **)&vertex_src, NULL);
+	glCompileShader(vertex_shader);
+
+	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(vertex_shader, 1024, NULL, info_log);
+		printf("could not compile %s: %s\n", vs_path, info_log);
+		return -1;
+	}
+
+	unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragment_shader, 1, (const char **)&fragment_src, NULL);
+	glCompileShader(fragment_shader);
+
+	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(fragment_shader, 1024, NULL, info_log);
+		printf("could not compile %s: %s\n", fs_path, info_log);
+		return -1;
+	}
+
+	unsigned int program = glCreateProgram();
+	glAttachShader(program, vertex_shader);
+	glAttachShader(program, fragment_shader);
+	glLinkProgram(program);
+
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+	if (!success) {
+		glGetProgramInfoLog(program, 1024, NULL, info_log);
+		printf("could not link program: %s\n", info_log);
+		return -1;
+	}
+
+	free(vertex_src);
+	glDeleteShader(vertex_shader);
+	free(fragment_src);
+	glDeleteShader(fragment_shader);
+
+	return program;
+}
+
 int main() {
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
@@ -180,66 +241,25 @@ int main() {
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+	int w, h, c;
+	unsigned char *dd = stbi_load("client/assets/kms.png", &w, &h, &c, 4);
+	assert(dd != NULL);
+	GLFWimage icons[1] = {
+		{32, 32, dd},
+	};
+	glfwSetWindowIcon(window, 1, icons);
+	// stbi_image_free(data);
+
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 		printf("could not init glad\n");
 		return -1;
 	}
 
-	char *vertex_src;
-	if (!read_entire_file(&vertex_src, "client/shaders/triangle.vs")) {
-		printf("could not read .vs\n");
-		return -1;
-	}
-
-	char *fragment_src;
-	if (!read_entire_file(&fragment_src, "client/shaders/triangle.fs")) {
-		printf("could not read .fs\n");
-		return -1;
-	}
-	
-	int success;
-	char info_log[1024];
-
-	unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, (const char **)&vertex_src, NULL);
-	glCompileShader(vertex_shader);
-
-	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		glGetShaderInfoLog(vertex_shader, 1024, NULL, info_log);
-		printf("could not compile .vs: %s\n", info_log);
-		return -1;
-	}
-
-	unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, (const char **)&fragment_src, NULL);
-	glCompileShader(fragment_shader);
-
-	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		glGetShaderInfoLog(fragment_shader, 1024, NULL, info_log);
-		printf("could not compile .fs: %s\n", info_log);
-		return -1;
-	}
-
-	unsigned int program = glCreateProgram();
+	unsigned int program = create_program_from_shaders("client/shaders/block.vs", "client/shaders/block.fs");
 	defer { glDeleteProgram(program); }
 
-	glAttachShader(program, vertex_shader);
-	glAttachShader(program, fragment_shader);
-	glLinkProgram(program);
-
-	glGetProgramiv(program, GL_LINK_STATUS, &success);
-	if (!success) {
-		glGetProgramInfoLog(program, 1024, NULL, info_log);
-		printf("could not link program: %s\n", info_log);
-		return -1;
-	}
-
-	free(vertex_src);
-	glDeleteShader(vertex_shader);
-	free(fragment_src);
-	glDeleteShader(fragment_shader);
+	unsigned int img_program = create_program_from_shaders("client/shaders/img.vs", "client/shaders/img.fs");
+	defer { glDeleteProgram(img_program); }
 
 	unsigned int vao;
 	glGenVertexArrays(1, &vao);
@@ -247,7 +267,7 @@ int main() {
 	glBindVertexArray(vao);
 
 	World world;
-	glm_ivec3_copy((ivec3){8, 1, 8}, world.size);
+	glm_ivec3_copy((ivec3){8, 8, 8}, world.size);
 	world_init(&world);
 	defer { world_free(&world); }
 
@@ -262,13 +282,49 @@ int main() {
 
 	int u_cpos = glGetUniformLocation(program, "cpos");
 
+	int u_texture = glGetUniformLocation(img_program, "texture");
+	int u_texture2 = glGetUniformLocation(program, "texture");
+
 	mat4 proj;
-	glm_perspective(45, 800./600, 0.1, 1000, proj);
+	glm_perspective(45, 800./600, 0.001, 1000, proj);
 
 	glEnable(GL_DEPTH_TEST);
 
 	char window_title[1024] = "hello :D";
 	double prev_time = 0;
+
+	unsigned int texture;
+	glGenTextures(1, &texture);
+	glActiveTexture(texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	int width, height, chans;
+	unsigned char *data = stbi_load("client/assets/kms.png", &width, &height, &chans, 4);
+	assert(data != NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	stbi_image_free(data);
+	// glGenerateMipmap(GL_TEXTURE_2D);
+
+	unsigned int img_vbo;
+	glGenBuffers(1, &img_vbo);
+	defer { glDeleteBuffers(1, &img_vbo); }
+
+	float img_vertices[] = {
+		0./4/20, 0./3/20, 0, 0, // 0
+		0./4/20, 1./3/20, 0, 1, // 1
+		1./4/20, 1./3/20, 1, 1, // 2
+		1./4/20, 1./3/20, 1, 1, // 2
+		1./4/20, 0./3/20, 1, 0, // 3
+		0./4/20, 0./3/20, 0, 0, // 0
+	};
+
+	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
+	glBufferData(GL_ARRAY_BUFFER, 6*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -285,14 +341,14 @@ int main() {
 		update_camera_position(window);
 
 		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-			printf("!!! pressed !!!\n");
+			// printf("!!! pressed !!!\n");
 			for (int i = 0; i < 10; i++) {
 				vec3 pos;
 				glm_vec3_scale(camera.front, i, pos);
 				glm_vec3_add(pos, camera.position, pos);
 				glm_vec3_floor(pos, pos);
 				if (pos[X] < 0 || pos[Y] < 0 || pos[Z] < 0) continue;
-				printf("%d -> %f %f %f\n", i, pos[X], pos[Y], pos[Z]);
+				// printf("%d -> %f %f %f\n", i, pos[X], pos[Y], pos[Z]);
 				// todo: check world size
 				int cx = pos[X] / CHUNK_SIZE;
 				int cy = pos[Y] / CHUNK_SIZE;
@@ -304,7 +360,7 @@ int main() {
 				int bi = chunk_lin(x, y, z);
 				if (world.chunks[ci].blocks[bi] != 0) {
 					world.chunks[ci].blocks[bi] = 0;
-					printf("hit block %d %d\n", ci, bi);
+					// printf("hit block %d %d\n", ci, bi);
 					chunk_bake(&world.chunks[ci]);
 					break;
 				}
@@ -320,6 +376,7 @@ int main() {
 
 		glUseProgram(program);
 		glBindVertexArray(vao);
+		glUniform1i(u_texture2, 0);
 
 		glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);
 
@@ -339,6 +396,17 @@ int main() {
 			Chunk *chunk = &world.chunks[i];
 			chunk_render(chunk, u_cpos);
 		}
+
+		glUseProgram(img_program);
+		// glActiveTexture(GL_TEXTURE0);
+		// glBindTexture(GL_TEXTURE_2D, texture);
+		glUniform1i(u_texture, 0);
+		glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
+		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		glfwSwapBuffers(window);
 	}
