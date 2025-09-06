@@ -4,12 +4,11 @@
 #include <math.h>
 #include <string.h>
 #include <assert.h>
-#include "../defer.h"
 #include "chunk.h"
 #include "util.h"
-#include "glad/include/glad/glad.h"
-#include "glfw3.h"
-#include "cglm/include/cglm/cglm.h"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <cglm/cglm.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -36,28 +35,6 @@ float get_ram_usage_in_mb() {
 
 void print_ram(char *text) {
 	printf("RAM USAGE (%s): %.2f MB\n", text, get_ram_usage_in_mb());
-}
-
-// @free(buf)
-bool read_entire_file(char **buf, char *path) {
-	FILE *file = fopen(path, "rb");
-	if (file == NULL) {
-		return false;
-	}
-	defer { fclose(file); }
-
-	fseek(file, 0, SEEK_END);
-	long size = ftell(file);
-	fseek(file, 0, SEEK_SET);
-
-	*buf = malloc(size + 1);
-	if (*buf == NULL) {
-		return false;
-	}
-	fread(*buf, size, 1, file);
-	(*buf)[size] = 0;
-
-	return true;
 }
 
 typedef struct {
@@ -267,7 +244,7 @@ int main() {
 	glBindVertexArray(vao);
 
 	World world;
-	glm_ivec3_copy((ivec3){8, 8, 8}, world.size);
+	glm_ivec3_copy((ivec3){4, 1, 4}, world.size);
 	world_init(&world);
 	defer { world_free(&world); }
 

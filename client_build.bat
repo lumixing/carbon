@@ -1,1 +1,7 @@
-gcc -Wall client/main.c client/chunk.c glad.o -LC:/Users/lumix/scoop/apps/glfw/current/lib-mingw-w64 -lglfw3 -lopengl32 -lgdi32 -o client
+gcc -Wall ^
+client/main.c ^
+client/chunk.c ^
+client/util.c ^
+glad.o ^
+-lglfw3 -lopengl32 -lgdi32 ^
+-o client

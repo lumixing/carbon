@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "glad/include/glad/glad.h"
+#include <glad/glad.h>
 
 int chunk_lin(int x, int y, int z) {
 	return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;

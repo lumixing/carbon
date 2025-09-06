@@ -1,4 +1,4 @@
-#include "cglm/include/cglm/cglm.h"
+#include <cglm/cglm.h>
 
 #define CHUNK_SIZE 16
 
