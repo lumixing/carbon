@@ -1,3 +1,4 @@
+#pragma once // todo: do pragma for all headers im tired by bye
 #include <cglm/cglm.h>
 
 #define CHUNK_SIZE 16

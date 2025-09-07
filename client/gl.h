@@ -1,0 +1,1 @@
+unsigned int create_program_from_shaders(char *vs_path, char *fs_path);

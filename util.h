@@ -9,4 +9,16 @@
 
 #define nfree(ptr) do { if (ptr != NULL) { free(ptr); ptr = NULL; } } while (0)
 
+#define X 0
+#define Y 1
+#define Z 2
+
+// #define DEBUG
+
+#ifdef DEBUG
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 bool read_entire_file(char **buf, char *path);
+float get_ram_usage_in_mb();

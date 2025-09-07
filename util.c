@@ -1,4 +1,5 @@
 #include "util.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -25,16 +26,12 @@ bool read_entire_file(char **buf, char *path) {
 	return true;
 }
 
-float Q_rsqrt(float number) {
-	long i;
-	float x2, y;
-	const float threehalfs = 1.5F;
-	
-	x2 = number * 0.5F;
-	y = number;
-	i = *(long*)&y;           // Evil floating point bit hack
-	i = 0x5f3759df - (i >> 1); // What the f***?
-	y = *(float*)&i;
-	y = y * (threehalfs - (x2 * y * y)); // Newton's method
-	return y;
+float get_ram_usage_in_mb() {
+#ifdef DEBUG
+	PROCESS_MEMORY_COUNTERS pmc;
+	if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+		return pmc.WorkingSetSize / 1024.0 / 1024.0;
+	}
+#endif
+	return -1;
 }

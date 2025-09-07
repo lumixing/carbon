@@ -1,9 +1,9 @@
 #include "chunk.h"
-#include "util.h"
+
+#include "../util.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-// #include <glad/glad.h>
 #include "../include/glad/glad.h"
 
 int chunk_lin(int x, int y, int z) {

@@ -5,195 +5,18 @@
 #include <string.h>
 #include <assert.h>
 #include "chunk.h"
-#include "util.h"
-// #include <glad/glad.h>
+#include "../util.h"
 #include "../include/glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <cglm/cglm.h>
+#include "camera.h"
+#include "gl.h"
+#include "world.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../include/stb_image.h"
 
-// #define DEBUG
-
-#ifdef DEBUG
-
-#include <windows.h>
-#include <psapi.h>
-
-#endif
-
-float get_ram_usage_in_mb() {
-#ifdef DEBUG
-	PROCESS_MEMORY_COUNTERS pmc;
-	if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-		// printf("RAM: %.1f MB\n", pmc.WorkingSetSize / 1024.0 / 1024.0);
-		return pmc.WorkingSetSize / 1024.0 / 1024.0;
-	}
-#endif
-	return -1;
-}
-
-void print_ram(char *text) {
-	printf("RAM USAGE (%s): %.2f MB\n", text, get_ram_usage_in_mb());
-}
-
-typedef struct {
-	vec3 position;
-	vec3 front;
-	vec3 up;
-	float yaw;
-	float pitch;
-} Camera;
-
-Camera camera = {0};
-
-#define X 0
-#define Y 1
-#define Z 2
-
-#define CAM_SPEED 0.2
-
 void mouse_callback(GLFWwindow *window, double x, double y);
-
-void update_camera_position(GLFWwindow *window) {
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		vec2 front;
-		glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
-		glm_vec2_normalize(front);
-		camera.position[X] += front[X] * CAM_SPEED;
-		camera.position[Z] += front[Y] * CAM_SPEED;
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		vec2 front;
-		glm_vec2_copy((vec2){camera.front[X], camera.front[Z]}, front);
-		glm_vec2_normalize(front);
-		camera.position[X] -= front[X] * CAM_SPEED;
-		camera.position[Z] -= front[Y] * CAM_SPEED;
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		vec3 cross;
-		glm_vec3_cross(camera.front, camera.up, cross);
-		glm_vec3_normalize(cross);
-		glm_vec3_scale(cross, CAM_SPEED, cross);
-		glm_vec3_sub(camera.position, cross, camera.position);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		vec3 cross;
-		glm_vec3_cross(camera.front, camera.up, cross);
-		glm_vec3_normalize(cross);
-		glm_vec3_scale(cross, CAM_SPEED, cross);
-		glm_vec3_add(camera.position, cross, camera.position);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-		vec3 up;
-		glm_vec3_scale(camera.up, CAM_SPEED, up);
-		glm_vec3_add(camera.position, up, camera.position);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-		vec3 up;
-		glm_vec3_scale(camera.up, CAM_SPEED, up);
-		glm_vec3_sub(camera.position, up, camera.position);
-	}
-}
-
-typedef struct {
-	ivec3 size;
-	int chunks_len;
-	Chunk *chunks;
-} World;
-
-int world_lin(ivec3 size, int x, int y, int z) {
-	return x + y * size[X] + z * size[X] * size[Y];
-}
-
-void world_init(World *world) {
-	world->chunks_len = world->size[X] * world->size[Y] * world->size[Z];
-	world->chunks = malloc(world->chunks_len * sizeof(Chunk));
-	assert(world->chunks != NULL);
-
-	for (int x = 0; x < world->size[X]; x++) {
-		for (int y = 0; y < world->size[Y]; y++) {
-			for (int z = 0; z < world->size[Z]; z++) {
-				int cidx = world_lin(world->size, x, y, z);
-				Chunk *chunk = &world->chunks[cidx];
-				glm_ivec3_copy((ivec3){x, y, z}, chunk->cpos);
-				chunk_init(chunk);
-				chunk_bake(chunk);
-			}
-		}
-	}
-}
-
-void world_free(World *world) {
-	for (int i = 0; i < world->chunks_len; i++) {
-		chunk_free(&world->chunks[i]);
-	}
-	nfree(world->chunks);
-}
-
-unsigned int create_program_from_shaders(char *vs_path, char *fs_path) {
-	char *vertex_src;
-	if (!read_entire_file(&vertex_src, vs_path)) {
-		printf("could not read %s\n", vs_path);
-		return -1;
-	}
-
-	char *fragment_src;
-	if (!read_entire_file(&fragment_src, fs_path)) {
-		printf("could not read %s\n", fs_path);
-		return -1;
-	}
-
-	int success;
-	char info_log[1024];
-
-	unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, (const char **)&vertex_src, NULL);
-	glCompileShader(vertex_shader);
-
-	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		glGetShaderInfoLog(vertex_shader, 1024, NULL, info_log);
-		printf("could not compile %s: %s\n", vs_path, info_log);
-		return -1;
-	}
-
-	unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, (const char **)&fragment_src, NULL);
-	glCompileShader(fragment_shader);
-
-	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		glGetShaderInfoLog(fragment_shader, 1024, NULL, info_log);
-		printf("could not compile %s: %s\n", fs_path, info_log);
-		return -1;
-	}
-
-	unsigned int program = glCreateProgram();
-	glAttachShader(program, vertex_shader);
-	glAttachShader(program, fragment_shader);
-	glLinkProgram(program);
-
-	glGetProgramiv(program, GL_LINK_STATUS, &success);
-	if (!success) {
-		glGetProgramInfoLog(program, 1024, NULL, info_log);
-		printf("could not link program: %s\n", info_log);
-		return -1;
-	}
-
-	free(vertex_src);
-	glDeleteShader(vertex_shader);
-	free(fragment_src);
-	glDeleteShader(fragment_shader);
-
-	return program;
-}
 
 int main() {
 	if (!glfwInit()) {
@@ -392,37 +215,6 @@ int main() {
 	return 0;
 }
 
-#define SENS 0.1
-
 void mouse_callback(GLFWwindow *window, double x, double y) {
-	// not using cglm for ts /shrug
-	static double last_x = 0;
-	static double last_y = 0;
-	static bool first = true;
-
-	if (first) {
-		first = false;
-		last_x = x;
-		last_y = y;
-	}
-
-	double offset_x = x - last_x;
-	double offset_y = -(y - last_y);
-
-	last_x = x;
-	last_y = y;
-
-	offset_x *= SENS;
-	offset_y *= SENS;
-
-	camera.yaw += offset_x;
-	camera.pitch += offset_y;
-	if (camera.pitch < -89) camera.pitch = -89;
-	else if (camera.pitch > 89) camera.pitch = 89;
-
-	camera.front[X] = cosf(glm_rad(camera.yaw)) * cosf(glm_rad(camera.pitch));
-	camera.front[Y] = sinf(glm_rad(camera.pitch));
-	camera.front[Z] = sinf(glm_rad(camera.yaw)) * cosf(glm_rad(camera.pitch));
-
-	glm_vec3_normalize(camera.front);
+	update_camera_rotation(window, x, y);
 }
