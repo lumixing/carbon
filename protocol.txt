@@ -1,18 +1,22 @@
 carbon multiplayer protocol
 
+types:
+u8, f32
+string ([u8]u8)
+
 c->s (serverbound)
 0x00 join (username string)
 0x01 leave ()
 0x08 chat (text string)
-0x03 block update (cpos [3]i32, bpos [3]u4, block u8)
+0x03 block update (cpos [3]u8, bpos [3]u8, block u8)
 0x06 player position (pos [3]f32)
 0x07 player rotation (yaw, pitch f32)
 
 s->c (clientbound)
 0x80 join (username string)
 0x81 leave (username string)
-0x88 chat
-0x83 block update (cpos [3]i32, bpos [3]u4, block u8)
-0x84 chunk (cpos [3]i32, blocks [16^3]u8)
+0x88 chat (username, text string)
+0x83 block update (cpos [3]u8, bpos [3]u8, block u8)
+0x84 chunk (cpos [3]u8, blocks [16^3]u8)
 0x86 player position (username string, pos [3]f32)
 0x87 player rotation (username string, yaw, pitch f32)

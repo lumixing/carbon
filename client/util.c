@@ -24,3 +24,17 @@ bool read_entire_file(char **buf, char *path) {
 
 	return true;
 }
+
+float Q_rsqrt(float number) {
+	long i;
+	float x2, y;
+	const float threehalfs = 1.5F;
+	
+	x2 = number * 0.5F;
+	y = number;
+	i = *(long*)&y;           // Evil floating point bit hack
+	i = 0x5f3759df - (i >> 1); // What the f***?
+	y = *(float*)&i;
+	y = y * (threehalfs - (x2 * y * y)); // Newton's method
+	return y;
+}
