@@ -5,6 +5,11 @@
 #include <string.h>
 #include <assert.h>
 #include "chunk.h"
+
+// stbiw's Y variable inteferes with util's Y macro (fuck you)
+// #define STB_IMAGE_WRITE_IMPLEMENTATION
+// #include "../include/stb_image_write.h"
+
 #include "../util.h"
 #include "../include/glad/glad.h"
 #include <GLFW/glfw3.h>
@@ -15,6 +20,9 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../include/stb_image.h"
+
+// #define STB_TRUETYPE_IMPLEMENTATION
+// #include "../include/stb_truetype.h"
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
@@ -38,6 +46,30 @@ void image_free(const Image *image) {
 }
 
 int main() {
+	// char *font_buffer;
+	// read_entire_file(&font_buffer, "client/assets/hack.ttf");
+	// defer { free(font_buffer); }
+
+	// stbtt_fontinfo font;
+	// stbtt_InitFont(&font, font_buffer, 0);
+
+	// int bw = 256, bh = 256;
+	// char *bitmap = malloc(bw * bh);
+	// defer { free(bitmap); }
+
+	// stbtt_pack_context pc;
+	// stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
+	// stbtt_packedchar chardata[96];
+	// stbtt_PackFontRange(&pc, font_buffer, 0, 32, 32, 96, chardata);
+	// stbtt_PackEnd(&pc);
+
+	// for (int i = 0; i < 96; i++) {
+	// 	stbtt_packedchar c = chardata[i];
+	// 	printf("%u;%u;%u;%u\n", c.x0, c.y0, c.x1, c.y1);
+	// }
+
+	// stbi_write_png("font.png", bw, bh, 1, bitmap, bw);
+
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
 		return -1;
@@ -63,6 +95,9 @@ int main() {
 
 	Image kms_img = image_load("client/assets/kms.png");
 	defer { image_free(&kms_img); }
+
+	Image font_img = image_load("client/assets/hack.png");
+	defer { image_free(&font_img); }
 
 	GLFWimage icons[1] = {{kms_img.width, kms_img.height, kms_img.data}};
 	glfwSetWindowIcon(window, 1, icons);
@@ -112,27 +147,43 @@ int main() {
 
 	unsigned int texture;
 	glGenTextures(1, &texture);
-	// glActiveTexture(texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
-
-	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kms_img.width, kms_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, kms_img.data);
+
+	unsigned int font_texture;
+	glGenTextures(1, &font_texture);
+	glBindTexture(GL_TEXTURE_2D, font_texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
 
 	unsigned int img_vbo;
 	glGenBuffers(1, &img_vbo);
 	defer { glDeleteBuffers(1, &img_vbo); }
 
+	//1;107;14;128
+	int x0 = 1;
+	int y0 = 107;
+	int x1 = 14;
+	int y1 = 128;
+
+	float x0n = 1./256;
+	float y0n = 107./256;
+	float x1n = 14./256;
+	float y1n = 128./256;
+
+	int w0 = x1 - x0;
+	int h0 = y1 - y0;
+
 	float img_vertices[] = {
-		0./800*32-1, 0./600*32-1, 0, 1, // 0
-		0./800*32-1, 1./600*32-1, 0, 0, // 1
-		1./800*32-1, 1./600*32-1, 1, 0, // 2
-		1./800*32-1, 1./600*32-1, 1, 0, // 2
-		1./800*32-1, 0./600*32-1, 1, 1, // 3
-		0./800*32-1, 0./600*32-1, 0, 1, // 0
+		0./800*w0*10-1, 0./600*h0*10-1, x0n, y1n, // 0
+		0./800*w0*10-1, 1./600*h0*10-1, x0n, y0n, // 1
+		1./800*w0*10-1, 1./600*h0*10-1, x1n, y0n, // 2
+		1./800*w0*10-1, 1./600*h0*10-1, x1n, y0n, // 2
+		1./800*w0*10-1, 0./600*h0*10-1, x1n, y1n, // 3
+		0./800*w0*10-1, 0./600*h0*10-1, x0n, y1n, // 0
 	};
 
 	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
@@ -187,7 +238,9 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(program);
-		// glBindVertexArray(vao);
+
+		// glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
 		glUniform1i(u_texture2, 0);
 
 		glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);
@@ -210,14 +263,17 @@ int main() {
 		}
 
 		glUseProgram(img_program);
-		// glActiveTexture(GL_TEXTURE0);
-		// glBindTexture(GL_TEXTURE_2D, texture);
+
+		// glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, font_texture);
 		glUniform1i(u_texture, 0);
+		
 		glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
 		glEnableVertexAttribArray(0);
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
 		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
+
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		glfwSwapBuffers(window);
