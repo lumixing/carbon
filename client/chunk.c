@@ -22,7 +22,7 @@ void chunk_init(Chunk *chunk) {
 		for (int y = 0; y < CHUNK_SIZE; y++) {
 			for (int z = 0; z < CHUNK_SIZE; z++) {
 				int i = chunk_lin(x, y, z);
-				chunk->blocks[i] = rand() % 2;
+				chunk->blocks[i] = rand() % 4;
 			}
 		}
 	}
@@ -41,32 +41,32 @@ void chunk_free(Chunk *chunk) {
 	glDeleteBuffers(1, &chunk->ebo);
 }
 
-void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count) {
+void chunk_bake_block(Chunk *chunk, int x, int y, int z, char block, int block_count) {
 	BlockVertex vertices[] = {
-		{0+x, 1+y, 0+z, 0, 0}, // front
-		{1+x, 1+y, 0+z, 0, 1},
-		{0+x, 0+y, 0+z, 0, 2},
-		{1+x, 0+y, 0+z, 0, 3},
-		{0+x, 1+y, 1+z, 0, 0}, // back
-		{1+x, 1+y, 1+z, 0, 1},
-		{0+x, 0+y, 1+z, 0, 2},
-		{1+x, 0+y, 1+z, 0, 3},
-		{0+x, 1+y, 0+z, 1, 0}, // left
-		{0+x, 0+y, 0+z, 1, 1},
-		{0+x, 1+y, 1+z, 1, 2},
-		{0+x, 0+y, 1+z, 1, 3},
-		{1+x, 1+y, 0+z, 1, 0}, // right
-		{1+x, 0+y, 0+z, 1, 1},
-		{1+x, 1+y, 1+z, 1, 2},
-		{1+x, 0+y, 1+z, 1, 3},
-		{0+x, 0+y, 0+z, 2, 0}, // bottom
-		{1+x, 0+y, 0+z, 2, 1},
-		{0+x, 0+y, 1+z, 2, 2},
-		{1+x, 0+y, 1+z, 2, 3},
-		{0+x, 1+y, 0+z, 2, 0}, // top
-		{1+x, 1+y, 0+z, 2, 1},
-		{0+x, 1+y, 1+z, 2, 2},
-		{1+x, 1+y, 1+z, 2, 3},
+		{0+x, 1+y, 0+z, block, 0, 0}, // front
+		{1+x, 1+y, 0+z, block, 1, 0},
+		{0+x, 0+y, 0+z, block, 2, 0},
+		{1+x, 0+y, 0+z, block, 3, 0},
+		{0+x, 1+y, 1+z, block, 0, 1}, // back
+		{1+x, 1+y, 1+z, block, 1, 1},
+		{0+x, 0+y, 1+z, block, 2, 1},
+		{1+x, 0+y, 1+z, block, 3, 1},
+		{0+x, 1+y, 0+z, block, 0, 2}, // left
+		{0+x, 0+y, 0+z, block, 1, 2},
+		{0+x, 1+y, 1+z, block, 2, 2},
+		{0+x, 0+y, 1+z, block, 3, 2},
+		{1+x, 1+y, 0+z, block, 0, 3}, // right
+		{1+x, 0+y, 0+z, block, 1, 3},
+		{1+x, 1+y, 1+z, block, 2, 3},
+		{1+x, 0+y, 1+z, block, 3, 3},
+		{0+x, 0+y, 0+z, block, 0, 4}, // bottom
+		{1+x, 0+y, 0+z, block, 1, 4},
+		{0+x, 0+y, 1+z, block, 2, 4},
+		{1+x, 0+y, 1+z, block, 3, 4},
+		{0+x, 1+y, 0+z, block, 0, 5}, // top
+		{1+x, 1+y, 0+z, block, 1, 5},
+		{0+x, 1+y, 1+z, block, 2, 5},
+		{1+x, 1+y, 1+z, block, 3, 5},
 	};
 
 	memcpy(chunk->vertices + (block_count * 4 * 6), vertices, 4 * 6 * sizeof(BlockVertex));
@@ -106,7 +106,7 @@ void chunk_bake(Chunk *chunk) {
 				if (chunk->blocks[i] == 0) {
 					continue;
 				}
-				chunk_bake_block(chunk, x, y, z, block_count++);
+				chunk_bake_block(chunk, x, y, z, chunk->blocks[i], block_count++);
 			}
 		}
 	}

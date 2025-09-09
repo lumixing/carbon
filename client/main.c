@@ -18,6 +18,25 @@
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
+typedef struct {
+	int width;
+	int height;
+	int channels;
+	unsigned char *data;
+} Image;
+
+Image image_load(const char *path) {
+	Image image;
+	image.data = stbi_load(path, &image.width, &image.height, &image.channels, 4);
+	assert(image.data);
+
+	return image;
+}
+
+void image_free(const Image *image) {
+	stbi_image_free(image->data);
+}
+
 int main() {
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
@@ -42,14 +61,11 @@ int main() {
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	int w, h, c;
-	unsigned char *dd = stbi_load("client/assets/kms.png", &w, &h, &c, 4);
-	assert(dd != NULL);
-	GLFWimage icons[1] = {
-		{32, 32, dd},
-	};
+	Image kms_img = image_load("client/assets/kms.png");
+	defer { image_free(&kms_img); }
+
+	GLFWimage icons[1] = {{kms_img.width, kms_img.height, kms_img.data}};
 	glfwSetWindowIcon(window, 1, icons);
-	// stbi_image_free(data);
 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 		printf("could not init glad\n");
@@ -96,32 +112,27 @@ int main() {
 
 	unsigned int texture;
 	glGenTextures(1, &texture);
-	glActiveTexture(texture);
+	// glActiveTexture(texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	int width, height, chans;
-	unsigned char *data = stbi_load("client/assets/kms.png", &width, &height, &chans, 4);
-	assert(data != NULL);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	stbi_image_free(data);
-	// glGenerateMipmap(GL_TEXTURE_2D);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kms_img.width, kms_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, kms_img.data);
 
 	unsigned int img_vbo;
 	glGenBuffers(1, &img_vbo);
 	defer { glDeleteBuffers(1, &img_vbo); }
 
 	float img_vertices[] = {
-		0./4/20, 0./3/20, 0, 0, // 0
-		0./4/20, 1./3/20, 0, 1, // 1
-		1./4/20, 1./3/20, 1, 1, // 2
-		1./4/20, 1./3/20, 1, 1, // 2
-		1./4/20, 0./3/20, 1, 0, // 3
-		0./4/20, 0./3/20, 0, 0, // 0
+		0./800*32-1, 0./600*32-1, 0, 1, // 0
+		0./800*32-1, 1./600*32-1, 0, 0, // 1
+		1./800*32-1, 1./600*32-1, 1, 0, // 2
+		1./800*32-1, 1./600*32-1, 1, 0, // 2
+		1./800*32-1, 0./600*32-1, 1, 1, // 3
+		0./800*32-1, 0./600*32-1, 0, 1, // 0
 	};
 
 	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
@@ -176,7 +187,7 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(program);
-		glBindVertexArray(vao);
+		// glBindVertexArray(vao);
 		glUniform1i(u_texture2, 0);
 
 		glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj[0]);

@@ -7,6 +7,7 @@ layout(location = 0) in uint data;
 
 // out vec3 oCol;
 out vec2 oOff;
+out float oMul;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -38,4 +39,17 @@ void main() {
 	if (off == 1) oOff = vec2(0, 1);
 	else if (off == 3) oOff = vec2(1, 1);
 	else if (off == 2) oOff = vec2(1, 0);
+
+	oOff /= 2;
+	uint block = bitfieldExtract(data, 15, 2);
+
+	if (block == 1) oOff.x += 0.5;
+	else if (block == 2) oOff.y += 0.5;
+	else if (block == 3) oOff += 0.5;
+
+	uint normal = bitfieldExtract(data, 15+4, 3);
+
+	oMul = 1;
+	if (normal == 2 || normal == 3) oMul = 0.5;
+	else if (normal == 0 || normal == 1) oMul = 0.7;
 }

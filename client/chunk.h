@@ -14,8 +14,9 @@ typedef struct {
 	unsigned int x : 5;
 	unsigned int y : 5;
 	unsigned int z : 5;
-	unsigned int b : 2;
-	unsigned int t : 2;
+	unsigned int block : 2;
+	unsigned int tex_coord : 2;
+	unsigned int normal : 3;
 } BlockVertex;
 
 typedef struct {
@@ -31,6 +32,6 @@ typedef struct {
 int chunk_lin(int x, int y, int z);
 void chunk_init(Chunk *chunk);
 void chunk_free(Chunk *chunk);
-void chunk_bake_block(Chunk *chunk, int x, int y, int z, int block_count);
+void chunk_bake_block(Chunk *chunk, int x, int y, int z, char block, int block_count);
 void chunk_bake(Chunk *chunk);
 void chunk_render(Chunk *chunk, int u_cpos);
