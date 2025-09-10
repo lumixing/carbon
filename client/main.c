@@ -46,21 +46,21 @@ void image_free(const Image *image) {
 }
 
 int main() {
-	char *font_buffer;
-	read_entire_file(&font_buffer, "client/assets/hack.ttf");
+	unsigned char *font_buffer;
+	read_entire_file((char **)&font_buffer, "client/assets/hack.ttf");
 	defer { free(font_buffer); }
 
 	stbtt_fontinfo font;
 	stbtt_InitFont(&font, font_buffer, 0);
 
-	int bw = 256, bh = 256;
-	char *bitmap = malloc(bw * bh);
+	int bw = 1024, bh = 1024;
+	unsigned char *bitmap = malloc(bw * bh);
 	defer { free(bitmap); }
 
 	stbtt_pack_context pc;
 	stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
 	stbtt_packedchar chardata[96];
-	stbtt_PackFontRange(&pc, font_buffer, 0, 32, 32, 96, chardata);
+	stbtt_PackFontRange(&pc, font_buffer, 0, 128, 32, 96, chardata);
 	stbtt_PackEnd(&pc);
 
 	// for (int i = 0; i < 96; i++) {
@@ -68,7 +68,7 @@ int main() {
 	// 	printf("%u;%u;%u;%u\n", c.x0, c.y0, c.x1, c.y1);
 	// }
 
-	// stbi_write_png("font.png", bw, bh, 1, bitmap, bw);
+	// stbi_write_png("font2.png", bw, bh, 1, bitmap, bw);
 
 	if (!glfwInit()) {
 		printf("could not init glfw\n");
@@ -96,8 +96,8 @@ int main() {
 	Image kms_img = image_load("client/assets/kms.png");
 	defer { image_free(&kms_img); }
 
-	Image font_img = image_load("client/assets/hack.png");
-	defer { image_free(&font_img); }
+	// Image font_img = image_load("client/assets/hack.png");
+	// defer { image_free(&font_img); }
 
 	GLFWimage icons[1] = {{kms_img.width, kms_img.height, kms_img.data}};
 	glfwSetWindowIcon(window, 1, icons);
@@ -157,7 +157,8 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, font_texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bw, bh, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
 
 	unsigned int img_vbo, img_ebo;
 
@@ -167,7 +168,7 @@ int main() {
 	glGenBuffers(1, &img_ebo);
 	defer { glDeleteBuffers(1, &img_ebo); }
 
-	const char *text = "#fuckingpawesome";
+	const char *text = "yuuup";
 	int text_len = strlen(text);
 
 	float *img_vertices = malloc(text_len * 4 * 4 * sizeof(float));
@@ -176,19 +177,19 @@ int main() {
 	for (int i = 0; i < text_len; i++) {
 		stbtt_packedchar ch = chardata[text[i] - 32];
 
-		int width = ch.x1 - ch.x0;
-		int height = ch.y1 - ch.y0;
+		float width = ch.x1 - ch.x0;
+		float height = ch.y1 - ch.y0;
 
-		float x0n = (float)ch.x0 / 256;
-		float y0n = (float)ch.y0 / 256;
-		float x1n = (float)ch.x1 / 256;
-		float y1n = (float)ch.y1 / 256;
+		float x0n = (float)ch.x0 / bw;
+		float y0n = (float)ch.y0 / bh;
+		float x1n = (float)ch.x1 / bw;
+		float y1n = (float)ch.y1 / bh;
 
 		float char_vertices[4 * 4] = {
-			0./800*width*2-1+advance/800*2, 0.5+0./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x0n, y1n, // 0
-			0./800*width*2-1+advance/800*2, 0.5+1./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x0n, y0n, // 1
-			1./800*width*2-1+advance/800*2, 0.5+1./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x1n, y0n, // 2
-			1./800*width*2-1+advance/800*2, 0.5+0./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x1n, y1n, // 3
+			0./800*width-1+advance/800, 0.1+0./600*height-1-height/600-ch.yoff/600, x0n, y1n, // 0
+			0./800*width-1+advance/800, 0.1+1./600*height-1-height/600-ch.yoff/600, x0n, y0n, // 1
+			1./800*width-1+advance/800, 0.1+1./600*height-1-height/600-ch.yoff/600, x1n, y0n, // 2
+			1./800*width-1+advance/800, 0.1+0./600*height-1-height/600-ch.yoff/600, x1n, y1n, // 3
 		};
 
 		memcpy(img_vertices + (i * 4 * 4), char_vertices, 4 * 4 * sizeof(float));
@@ -299,7 +300,12 @@ int main() {
 		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
 		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		glDrawElements(GL_TRIANGLES, text_len * 6, GL_UNSIGNED_INT, 0);
+
+		glDisable(GL_BLEND);
 
 		glfwSwapBuffers(window);
 	}
