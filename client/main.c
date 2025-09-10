@@ -155,8 +155,8 @@ int main() {
 	unsigned int font_texture;
 	glGenTextures(1, &font_texture);
 	glBindTexture(GL_TEXTURE_2D, font_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
 
 	unsigned int img_vbo, img_ebo;
@@ -167,79 +167,53 @@ int main() {
 	glGenBuffers(1, &img_ebo);
 	defer { glDeleteBuffers(1, &img_ebo); }
 
-	//1;107;14;128
-	// int x0 = 1;
-	// int y0 = 107;
-	// int x1 = 14;
-	// int y1 = 128;
+	const char *text = "#fuckingpawesome";
+	int text_len = strlen(text);
 
-	// float x0n = 1./256;
-	// float y0n = 107./256;
-	// float x1n = 14./256;
-	// float y1n = 128./256;
+	float *img_vertices = malloc(text_len * 4 * 4 * sizeof(float));
+	float advance = 0;
 
-	// int w0 = x1 - x0;
-	// int h0 = y1 - y0;
+	for (int i = 0; i < text_len; i++) {
+		stbtt_packedchar ch = chardata[text[i] - 32];
 
-	stbtt_packedchar hc = chardata['h'-32];
-	int hw0 = hc.x1 - hc.x0;
-	int hh0 = hc.y1 - hc.y0;
-	float hx0n = (float)hc.x0/256;
-	float hy0n = (float)hc.y0/256;
-	float hx1n = (float)hc.x1/256;
-	float hy1n = (float)hc.y1/256;
+		int width = ch.x1 - ch.x0;
+		int height = ch.y1 - ch.y0;
 
-	stbtt_packedchar ec = chardata['e'-32];
-	int ew0 = ec.x1 - ec.x0;
-	int eh0 = ec.y1 - ec.y0;
-	float ex0n = (float)ec.x0/256;
-	float ey0n = (float)ec.y0/256;
-	float ex1n = (float)ec.x1/256;
-	float ey1n = (float)ec.y1/256;
+		float x0n = (float)ch.x0 / 256;
+		float y0n = (float)ch.y0 / 256;
+		float x1n = (float)ch.x1 / 256;
+		float y1n = (float)ch.y1 / 256;
 
-	stbtt_packedchar yc = chardata['y'-32];
-	int yw0 = yc.x1 - yc.x0;
-	int yh0 = yc.y1 - yc.y0;
-	float yx0n = (float)yc.x0/256;
-	float yy0n = (float)yc.y0/256;
-	float yx1n = (float)yc.x1/256;
-	float yy1n = (float)yc.y1/256;
+		float char_vertices[4 * 4] = {
+			0./800*width*2-1+advance/800*2, 0.5+0./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x0n, y1n, // 0
+			0./800*width*2-1+advance/800*2, 0.5+1./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x0n, y0n, // 1
+			1./800*width*2-1+advance/800*2, 0.5+1./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x1n, y0n, // 2
+			1./800*width*2-1+advance/800*2, 0.5+0./600*height*2-1-(float)height/600*2-ch.yoff/600*2, x1n, y1n, // 3
+		};
 
-	printf("%f %f %f\n", hc.yoff, ec.yoff, yc.yoff);
+		memcpy(img_vertices + (i * 4 * 4), char_vertices, 4 * 4 * sizeof(float));
 
-	float img_vertices[] = {
-		0./800*hw0*10-1, 0.5+0./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx0n, hy1n, // 0
-		0./800*hw0*10-1, 0.5+1./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx0n, hy0n, // 1
-		1./800*hw0*10-1, 0.5+1./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx1n, hy0n, // 2
-		1./800*hw0*10-1, 0.5+0./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx1n, hy1n, // 3
-
-		0./800*ew0*10-1+(float)(hw0)/800*10, 0.5+0./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex0n, ey1n, // 0
-		0./800*ew0*10-1+(float)(hw0)/800*10, 0.5+1./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex0n, ey0n, // 1
-		1./800*ew0*10-1+(float)(hw0)/800*10, 0.5+1./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex1n, ey0n, // 2
-		1./800*ew0*10-1+(float)(hw0)/800*10, 0.5+0./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex1n, ey1n, // 3
-
-		0./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+0./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx0n, yy1n, // 0
-		0./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+1./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx0n, yy0n, // 1
-		1./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+1./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx1n, yy0n, // 2
-		1./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+0./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx1n, yy1n, // 3
-	};
+		advance += ch.xadvance;
+	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
-	glBufferData(GL_ARRAY_BUFFER, 12*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, text_len*4*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
+	nfree(img_vertices);
 
-	unsigned int img_indices[] = {
-		0, 1, 2,
-		2, 3, 0,
+	unsigned int *img_indices = malloc(text_len * 6 * sizeof(unsigned int));
 
-		0+4, 1+4, 2+4,
-		2+4, 3+4, 0+4,
+	for (int i = 0; i < text_len; i++) {
+		unsigned int char_indices[6] = {
+			0 + i * 4, 1 + i * 4, 2 + i * 4,
+			2 + i * 4, 3 + i * 4, 0 + i * 4,
+		};
 
-		0+8, 1+8, 2+8,
-		2+8, 3+8, 0+8,
-	};
+		memcpy(img_indices + i * 6, char_indices, 6 * sizeof(unsigned int));
+	}
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, img_ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 18*sizeof(unsigned int), img_indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, text_len*6*sizeof(unsigned int), img_indices, GL_STATIC_DRAW);
+	nfree(img_indices);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -307,8 +281,6 @@ int main() {
 		glm_mat4_identity(model);
 		glUniformMatrix4fv(u_model, 1, GL_FALSE, model[0]);
 
-		// chunk_render(&chunk, u_cpos);
-
 		for (int i = 0; i < world.chunks_len; i++) {
 			Chunk *chunk = &world.chunks[i];
 			chunk_render(chunk, u_cpos);
@@ -327,8 +299,7 @@ int main() {
 		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
 		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
 
-		// glDrawArrays(GL_TRIANGLES, 0, 6);
-		glDrawElements(GL_TRIANGLES, 18, GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, text_len * 6, GL_UNSIGNED_INT, 0);
 
 		glfwSwapBuffers(window);
 	}
