@@ -113,11 +113,11 @@ void chunk_bake(Chunk *chunk) {
 
 	glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo);
 	glBufferData(GL_ARRAY_BUFFER, chunk->vertices_len * sizeof(BlockVertex), chunk->vertices, GL_STATIC_DRAW);
-	free(chunk->vertices);
+	nfree(chunk->vertices);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk->indices_len * sizeof(unsigned int), chunk->indices, GL_STATIC_DRAW);
-	free(chunk->indices);
+	nfree(chunk->indices);
 }
 
 void chunk_render(Chunk *chunk, int u_cpos) {
