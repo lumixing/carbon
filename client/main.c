@@ -26,6 +26,8 @@
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
+#define FONT_SIZE 64
+
 typedef struct {
 	int width;
 	int height;
@@ -45,6 +47,85 @@ void image_free(const Image *image) {
 	stbi_image_free(image->data);
 }
 
+void draw_text(int bw, int bh, stbtt_packedchar chardata[], unsigned int program, unsigned int font_texture, int u_texture, const char *text, float x, float y) {
+	unsigned int vbo, ebo;
+
+	glGenBuffers(1, &vbo);
+	defer { glDeleteBuffers(1, &vbo); }
+
+	glGenBuffers(1, &ebo);
+	defer { glDeleteBuffers(1, &ebo); }
+
+	int text_len = strlen(text);
+
+	float *vertices = malloc(text_len * 4 * 4 * sizeof(float));
+	defer { nfree(vertices); }
+
+	float advance = 0;
+
+	for (int i = 0; i < text_len; i++) {
+		stbtt_packedchar ch = chardata[text[i] - 32];
+
+		float width = ch.x1 - ch.x0;
+		float height = ch.y1 - ch.y0;
+
+		float x0n = (float)ch.x0 / bw;
+		float y0n = (float)ch.y0 / bh;
+		float x1n = (float)ch.x1 / bw;
+		float y1n = (float)ch.y1 / bh;
+
+		float char_vertices[4 * 4] = {
+			0./800*width-1+advance/800+x/800, 0./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x0n, y1n, // 0
+			0./800*width-1+advance/800+x/800, 1./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x0n, y0n, // 1
+			1./800*width-1+advance/800+x/800, 1./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x1n, y0n, // 2
+			1./800*width-1+advance/800+x/800, 0./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x1n, y1n, // 3
+		};
+
+		memcpy(vertices + (i * 4 * 4), char_vertices, 4 * 4 * sizeof(float));
+
+		advance += ch.xadvance;
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, text_len*4*4*sizeof(float), vertices, GL_STATIC_DRAW);
+
+	unsigned int *indices = malloc(text_len * 6 * sizeof(unsigned int));
+	defer { nfree(indices); }
+
+	for (int i = 0; i < text_len; i++) {
+		unsigned int char_indices[6] = {
+			0 + i * 4, 1 + i * 4, 2 + i * 4,
+			2 + i * 4, 3 + i * 4, 0 + i * 4,
+		};
+
+		memcpy(indices + i * 6, char_indices, 6 * sizeof(unsigned int));
+	}
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, text_len*6*sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+	// draw
+	glUseProgram(program);
+
+	glBindTexture(GL_TEXTURE_2D, font_texture);
+	glUniform1i(u_texture, 0);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glDrawElements(GL_TRIANGLES, text_len * 6, GL_UNSIGNED_INT, 0);
+
+	glDisable(GL_BLEND);
+
+}
+
 int main() {
 	unsigned char *font_buffer;
 	read_entire_file((char **)&font_buffer, "client/assets/hack.ttf");
@@ -60,7 +141,7 @@ int main() {
 	stbtt_pack_context pc;
 	stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
 	stbtt_packedchar chardata[96];
-	stbtt_PackFontRange(&pc, font_buffer, 0, 128, 32, 96, chardata);
+	stbtt_PackFontRange(&pc, font_buffer, 0, FONT_SIZE, 32, 96, chardata);
 	stbtt_PackEnd(&pc);
 
 	// for (int i = 0; i < 96; i++) {
@@ -157,64 +238,7 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, font_texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bw, bh, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
-
-	unsigned int img_vbo, img_ebo;
-
-	glGenBuffers(1, &img_vbo);
-	defer { glDeleteBuffers(1, &img_vbo); }
-
-	glGenBuffers(1, &img_ebo);
-	defer { glDeleteBuffers(1, &img_ebo); }
-
-	const char *text = "yuuup";
-	int text_len = strlen(text);
-
-	float *img_vertices = malloc(text_len * 4 * 4 * sizeof(float));
-	float advance = 0;
-
-	for (int i = 0; i < text_len; i++) {
-		stbtt_packedchar ch = chardata[text[i] - 32];
-
-		float width = ch.x1 - ch.x0;
-		float height = ch.y1 - ch.y0;
-
-		float x0n = (float)ch.x0 / bw;
-		float y0n = (float)ch.y0 / bh;
-		float x1n = (float)ch.x1 / bw;
-		float y1n = (float)ch.y1 / bh;
-
-		float char_vertices[4 * 4] = {
-			0./800*width-1+advance/800, 0.1+0./600*height-1-height/600-ch.yoff/600, x0n, y1n, // 0
-			0./800*width-1+advance/800, 0.1+1./600*height-1-height/600-ch.yoff/600, x0n, y0n, // 1
-			1./800*width-1+advance/800, 0.1+1./600*height-1-height/600-ch.yoff/600, x1n, y0n, // 2
-			1./800*width-1+advance/800, 0.1+0./600*height-1-height/600-ch.yoff/600, x1n, y1n, // 3
-		};
-
-		memcpy(img_vertices + (i * 4 * 4), char_vertices, 4 * 4 * sizeof(float));
-
-		advance += ch.xadvance;
-	}
-
-	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
-	glBufferData(GL_ARRAY_BUFFER, text_len*4*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
-	nfree(img_vertices);
-
-	unsigned int *img_indices = malloc(text_len * 6 * sizeof(unsigned int));
-
-	for (int i = 0; i < text_len; i++) {
-		unsigned int char_indices[6] = {
-			0 + i * 4, 1 + i * 4, 2 + i * 4,
-			2 + i * 4, 3 + i * 4, 0 + i * 4,
-		};
-
-		memcpy(img_indices + i * 6, char_indices, 6 * sizeof(unsigned int));
-	}
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, img_ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, text_len*6*sizeof(unsigned int), img_indices, GL_STATIC_DRAW);
-	nfree(img_indices);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -257,8 +281,8 @@ int main() {
 			}
 		}
 
-		// sprintf(window_title, "pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
-		sprintf(window_title, "%.0f fps / %.1f mb", 1./dt, get_ram_usage_in_mb());
+		sprintf(window_title, "pos: %.2f %.2f %.2f (%.2f %.2f)\n", camera.position[0], camera.position[1], camera.position[2], camera.yaw, camera.pitch);
+		// sprintf(window_title, "%.0f fps / %.1f mb", 1./dt, get_ram_usage_in_mb());
 		glfwSetWindowTitle(window, window_title);
 
 		glClearColor(135./255, 206./255, 235./255, 1);
@@ -287,25 +311,8 @@ int main() {
 			chunk_render(chunk, u_cpos);
 		}
 
-		glUseProgram(img_program);
-
-		// glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, font_texture);
-		glUniform1i(u_texture, 0);
-		
-		glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, img_ebo);
-		glEnableVertexAttribArray(0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
-		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		glDrawElements(GL_TRIANGLES, text_len * 6, GL_UNSIGNED_INT, 0);
-
-		glDisable(GL_BLEND);
+		draw_text(bw, bh, chardata, img_program, font_texture, u_texture, "hello world B)", 0, 0);
+		draw_text(bw, bh, chardata, img_program, font_texture, u_texture, window_title, 64, 64);
 
 		glfwSwapBuffers(window);
 	}
