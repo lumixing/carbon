@@ -21,8 +21,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../include/stb_image.h"
 
-// #define STB_TRUETYPE_IMPLEMENTATION
-// #include "../include/stb_truetype.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "../include/stb_truetype.h"
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
@@ -46,22 +46,22 @@ void image_free(const Image *image) {
 }
 
 int main() {
-	// char *font_buffer;
-	// read_entire_file(&font_buffer, "client/assets/hack.ttf");
-	// defer { free(font_buffer); }
+	char *font_buffer;
+	read_entire_file(&font_buffer, "client/assets/hack.ttf");
+	defer { free(font_buffer); }
 
-	// stbtt_fontinfo font;
-	// stbtt_InitFont(&font, font_buffer, 0);
+	stbtt_fontinfo font;
+	stbtt_InitFont(&font, font_buffer, 0);
 
-	// int bw = 256, bh = 256;
-	// char *bitmap = malloc(bw * bh);
-	// defer { free(bitmap); }
+	int bw = 256, bh = 256;
+	char *bitmap = malloc(bw * bh);
+	defer { free(bitmap); }
 
-	// stbtt_pack_context pc;
-	// stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
-	// stbtt_packedchar chardata[96];
-	// stbtt_PackFontRange(&pc, font_buffer, 0, 32, 32, 96, chardata);
-	// stbtt_PackEnd(&pc);
+	stbtt_pack_context pc;
+	stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
+	stbtt_packedchar chardata[96];
+	stbtt_PackFontRange(&pc, font_buffer, 0, 32, 32, 96, chardata);
+	stbtt_PackEnd(&pc);
 
 	// for (int i = 0; i < 96; i++) {
 	// 	stbtt_packedchar c = chardata[i];
@@ -159,35 +159,87 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font_img.width, font_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_img.data);
 
-	unsigned int img_vbo;
+	unsigned int img_vbo, img_ebo;
+
 	glGenBuffers(1, &img_vbo);
 	defer { glDeleteBuffers(1, &img_vbo); }
 
+	glGenBuffers(1, &img_ebo);
+	defer { glDeleteBuffers(1, &img_ebo); }
+
 	//1;107;14;128
-	int x0 = 1;
-	int y0 = 107;
-	int x1 = 14;
-	int y1 = 128;
+	// int x0 = 1;
+	// int y0 = 107;
+	// int x1 = 14;
+	// int y1 = 128;
 
-	float x0n = 1./256;
-	float y0n = 107./256;
-	float x1n = 14./256;
-	float y1n = 128./256;
+	// float x0n = 1./256;
+	// float y0n = 107./256;
+	// float x1n = 14./256;
+	// float y1n = 128./256;
 
-	int w0 = x1 - x0;
-	int h0 = y1 - y0;
+	// int w0 = x1 - x0;
+	// int h0 = y1 - y0;
+
+	stbtt_packedchar hc = chardata['h'-32];
+	int hw0 = hc.x1 - hc.x0;
+	int hh0 = hc.y1 - hc.y0;
+	float hx0n = (float)hc.x0/256;
+	float hy0n = (float)hc.y0/256;
+	float hx1n = (float)hc.x1/256;
+	float hy1n = (float)hc.y1/256;
+
+	stbtt_packedchar ec = chardata['e'-32];
+	int ew0 = ec.x1 - ec.x0;
+	int eh0 = ec.y1 - ec.y0;
+	float ex0n = (float)ec.x0/256;
+	float ey0n = (float)ec.y0/256;
+	float ex1n = (float)ec.x1/256;
+	float ey1n = (float)ec.y1/256;
+
+	stbtt_packedchar yc = chardata['y'-32];
+	int yw0 = yc.x1 - yc.x0;
+	int yh0 = yc.y1 - yc.y0;
+	float yx0n = (float)yc.x0/256;
+	float yy0n = (float)yc.y0/256;
+	float yx1n = (float)yc.x1/256;
+	float yy1n = (float)yc.y1/256;
+
+	printf("%f %f %f\n", hc.yoff, ec.yoff, yc.yoff);
 
 	float img_vertices[] = {
-		0./800*w0*10-1, 0./600*h0*10-1, x0n, y1n, // 0
-		0./800*w0*10-1, 1./600*h0*10-1, x0n, y0n, // 1
-		1./800*w0*10-1, 1./600*h0*10-1, x1n, y0n, // 2
-		1./800*w0*10-1, 1./600*h0*10-1, x1n, y0n, // 2
-		1./800*w0*10-1, 0./600*h0*10-1, x1n, y1n, // 3
-		0./800*w0*10-1, 0./600*h0*10-1, x0n, y1n, // 0
+		0./800*hw0*10-1, 0.5+0./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx0n, hy1n, // 0
+		0./800*hw0*10-1, 0.5+1./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx0n, hy0n, // 1
+		1./800*hw0*10-1, 0.5+1./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx1n, hy0n, // 2
+		1./800*hw0*10-1, 0.5+0./600*hh0*10-1-(float)hh0/600*10-hc.yoff/600*10, hx1n, hy1n, // 3
+
+		0./800*ew0*10-1+(float)(hw0)/800*10, 0.5+0./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex0n, ey1n, // 0
+		0./800*ew0*10-1+(float)(hw0)/800*10, 0.5+1./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex0n, ey0n, // 1
+		1./800*ew0*10-1+(float)(hw0)/800*10, 0.5+1./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex1n, ey0n, // 2
+		1./800*ew0*10-1+(float)(hw0)/800*10, 0.5+0./600*eh0*10-1-(float)eh0/600*10-ec.yoff/600*10, ex1n, ey1n, // 3
+
+		0./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+0./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx0n, yy1n, // 0
+		0./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+1./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx0n, yy0n, // 1
+		1./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+1./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx1n, yy0n, // 2
+		1./800*yw0*10-1+(float)(hw0+ew0)/800*10, 0.5+0./600*yh0*10-1-(float)yh0/600*10-yc.yoff/600*10, yx1n, yy1n, // 3
 	};
 
 	glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
-	glBufferData(GL_ARRAY_BUFFER, 6*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 12*4*sizeof(float), img_vertices, GL_STATIC_DRAW);
+
+	unsigned int img_indices[] = {
+		0, 1, 2,
+		2, 3, 0,
+
+		0+4, 1+4, 2+4,
+		2+4, 3+4, 0+4,
+
+		0+8, 1+8, 2+8,
+		2+8, 3+8, 0+8,
+	};
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, img_ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 18*sizeof(unsigned int), img_indices, GL_STATIC_DRAW);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -269,12 +321,14 @@ int main() {
 		glUniform1i(u_texture, 0);
 		
 		glBindBuffer(GL_ARRAY_BUFFER, img_vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, img_ebo);
 		glEnableVertexAttribArray(0);
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(0, 2, GL_FLOAT, false, 4*sizeof(float), 0);
 		glVertexAttribPointer(1, 2, GL_FLOAT, false, 4*sizeof(float), (void *)(2*sizeof(float)));
 
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		// glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDrawElements(GL_TRIANGLES, 18, GL_UNSIGNED_INT, 0);
 
 		glfwSwapBuffers(window);
 	}
