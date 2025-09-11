@@ -20,5 +20,5 @@
 #include <psapi.h>
 #endif
 
-bool read_entire_file(char **buf, char *path);
+bool read_entire_file(char **buf, const char *path);
 float get_ram_usage_in_mb();

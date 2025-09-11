@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 // @free(buf)
-bool read_entire_file(char **buf, char *path) {
+bool read_entire_file(char **buf, const char *path) {
 	FILE *file = fopen(path, "rb");
 	if (file == NULL) {
 		return false;

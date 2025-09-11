@@ -26,8 +26,6 @@
 
 void mouse_callback(GLFWwindow *window, double x, double y);
 
-#define FONT_SIZE 64
-
 typedef struct {
 	int width;
 	int height;
@@ -47,7 +45,41 @@ void image_free(const Image *image) {
 	stbi_image_free(image->data);
 }
 
-void draw_text(int bw, int bh, stbtt_packedchar chardata[], unsigned int program, unsigned int font_texture, int u_texture, const char *text, float x, float y) {
+typedef struct {
+	int width; // width == height
+	int size;
+	unsigned int texture;
+	stbtt_packedchar chardata[96];
+} Font;
+
+// unsafe, todo: error handling
+void font_load(Font *font, const char *path, int font_size, int bitmap_width) {
+	font->width = bitmap_width;
+	font->size = font_size;
+
+	unsigned char *font_buffer;
+	read_entire_file((char **)&font_buffer, path);
+	defer { free(font_buffer); }
+
+	stbtt_fontinfo font_info;
+	stbtt_InitFont(&font_info, font_buffer, 0);
+
+	unsigned char *bitmap = malloc(bitmap_width * bitmap_width);
+	defer { free(bitmap); }
+	
+	stbtt_pack_context pc;
+	stbtt_PackBegin(&pc, bitmap, bitmap_width, bitmap_width, 0, 1, NULL);
+	stbtt_PackFontRange(&pc, font_buffer, 0, font_size, 32, 96, font->chardata);
+	stbtt_PackEnd(&pc);
+	
+	glGenTextures(1, &font->texture);
+	glBindTexture(GL_TEXTURE_2D, font->texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bitmap_width, bitmap_width, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+}
+
+void draw_text(Font *font, unsigned int program, int u_texture, const char *text, float x, float y) {
 	unsigned int vbo, ebo;
 
 	glGenBuffers(1, &vbo);
@@ -64,21 +96,21 @@ void draw_text(int bw, int bh, stbtt_packedchar chardata[], unsigned int program
 	float advance = 0;
 
 	for (int i = 0; i < text_len; i++) {
-		stbtt_packedchar ch = chardata[text[i] - 32];
+		stbtt_packedchar ch = font->chardata[text[i] - 32];
 
 		float width = ch.x1 - ch.x0;
 		float height = ch.y1 - ch.y0;
 
-		float x0n = (float)ch.x0 / bw;
-		float y0n = (float)ch.y0 / bh;
-		float x1n = (float)ch.x1 / bw;
-		float y1n = (float)ch.y1 / bh;
+		float x0n = (float)ch.x0 / font->width;
+		float y0n = (float)ch.y0 / font->width;
+		float x1n = (float)ch.x1 / font->width;
+		float y1n = (float)ch.y1 / font->width;
 
 		float char_vertices[4 * 4] = {
-			0./800*width-1+advance/800+x/800, 0./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x0n, y1n, // 0
-			0./800*width-1+advance/800+x/800, 1./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x0n, y0n, // 1
-			1./800*width-1+advance/800+x/800, 1./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x1n, y0n, // 2
-			1./800*width-1+advance/800+x/800, 0./600*height+1-(float)FONT_SIZE/600-height/600-ch.yoff/600-y/600, x1n, y1n, // 3
+			0./800*width-1+advance/800+x/800*2, 0./600*height+1-(float)font->size/600-height/600-ch.yoff/600-y/600*2, x0n, y1n, // 0
+			0./800*width-1+advance/800+x/800*2, 1./600*height+1-(float)font->size/600-height/600-ch.yoff/600-y/600*2, x0n, y0n, // 1
+			1./800*width-1+advance/800+x/800*2, 1./600*height+1-(float)font->size/600-height/600-ch.yoff/600-y/600*2, x1n, y0n, // 2
+			1./800*width-1+advance/800+x/800*2, 0./600*height+1-(float)font->size/600-height/600-ch.yoff/600-y/600*2, x1n, y1n, // 3
 		};
 
 		memcpy(vertices + (i * 4 * 4), char_vertices, 4 * 4 * sizeof(float));
@@ -107,7 +139,7 @@ void draw_text(int bw, int bh, stbtt_packedchar chardata[], unsigned int program
 	// draw
 	glUseProgram(program);
 
-	glBindTexture(GL_TEXTURE_2D, font_texture);
+	glBindTexture(GL_TEXTURE_2D, font->texture);
 	glUniform1i(u_texture, 0);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -123,27 +155,9 @@ void draw_text(int bw, int bh, stbtt_packedchar chardata[], unsigned int program
 	glDrawElements(GL_TRIANGLES, text_len * 6, GL_UNSIGNED_INT, 0);
 
 	glDisable(GL_BLEND);
-
 }
 
 int main() {
-	unsigned char *font_buffer;
-	read_entire_file((char **)&font_buffer, "client/assets/hack.ttf");
-	defer { free(font_buffer); }
-
-	stbtt_fontinfo font;
-	stbtt_InitFont(&font, font_buffer, 0);
-
-	int bw = 1024, bh = 1024;
-	unsigned char *bitmap = malloc(bw * bh);
-	defer { free(bitmap); }
-
-	stbtt_pack_context pc;
-	stbtt_PackBegin(&pc, bitmap, bw, bh, 0, 1, NULL);
-	stbtt_packedchar chardata[96];
-	stbtt_PackFontRange(&pc, font_buffer, 0, FONT_SIZE, 32, 96, chardata);
-	stbtt_PackEnd(&pc);
-
 	// for (int i = 0; i < 96; i++) {
 	// 	stbtt_packedchar c = chardata[i];
 	// 	printf("%u;%u;%u;%u\n", c.x0, c.y0, c.x1, c.y1);
@@ -233,12 +247,15 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kms_img.width, kms_img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, kms_img.data);
 
-	unsigned int font_texture;
-	glGenTextures(1, &font_texture);
-	glBindTexture(GL_TEXTURE_2D, font_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bw, bh, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+	// unsigned int font_texture;
+	// glGenTextures(1, &font_texture);
+	// glBindTexture(GL_TEXTURE_2D, font_texture);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bw, bh, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+
+	Font font;
+	font_load(&font, "client/assets/hack.ttf", 32, 1024);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -311,8 +328,9 @@ int main() {
 			chunk_render(chunk, u_cpos);
 		}
 
-		draw_text(bw, bh, chardata, img_program, font_texture, u_texture, "hello world B)", 0, 0);
-		draw_text(bw, bh, chardata, img_program, font_texture, u_texture, window_title, 64, 64);
+		draw_text(&font, img_program, u_texture, "hello world B)", 0, 0);
+		draw_text(&font, img_program, u_texture, window_title, 0, 16);
+		draw_text(&font, img_program, u_texture, "x", 400-4, 300-16+4);
 
 		glfwSwapBuffers(window);
 	}
