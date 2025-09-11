@@ -7,4 +7,6 @@ on windows run `client_build.bat`
 on linux run `client_build.sh`  
 pray in both cases  
 you most likely need to install glfw, cglm (scoop or yay i guess)  
-on windows u gotta do some hacky ass shit ill doc it l8r B)
+on windows u gotta do some hacky ass shit ill doc it l8r B)  
+SERVER ONLY WORKS IN WINDOWS FOR NOW  
+UNTIL I WRITE THE SAME CODE TWICE!!!
